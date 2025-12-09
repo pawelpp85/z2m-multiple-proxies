@@ -1,0 +1,32 @@
+{
+  "name": "Zigbee2MQTT Two",
+  "version": "1.0.1",
+  "slug": "zigbee2mqtt_two",
+  "description": "Ingress proxy to expose an existing Zigbee2MQTT UI in Home Assistant (no Zigbee hardware access).",
+  "url": "https://github.com/pawelpp85/z2m-multiple-proxies",
+  "startup": "services",
+  "boot": "auto",
+  "init": false,
+  "ingress": true,
+  "ingress_port": 8100,
+  "ingress_entry": "/",
+  "panel_title": "Zigbee2MQTT Two",
+  "panel_icon": "mdi:zigbee",
+  "icon": "icon.png",
+  "arch": ["aarch64", "amd64", "armhf", "armv7"],
+  "host_network": false,
+  "ports": {
+    "8100/tcp": null
+  },
+  "ports_description": {
+    "8100/tcp": "Frontend tcp-listen port"
+  },
+  "schema": {
+    "server": "url",
+    "auth_token": "str?"
+  },
+  "options": {
+    "server": "http://127.0.0.1:8099",
+    "auth_token": ""
+  }
+}
