@@ -56,6 +56,32 @@ services:
 
 In Dockage, create a new stack pointing at the folder containing this `docker-compose.yml` and bring it up. The Z2M UI will be available at `http://192.168.0.10:8486`.
 
+### Mapping Zigbee USB devices
+
+The line `- /dev/zigbee-one:/dev/zigbee-one` is a bind-mount of a Zigbee coordinator device from the host into the container. The left side is the host path; the right side is the path Z2M sees inside the container. This works best when you create a stable device alias (so it doesn't change after reboots).
+
+To create a stable alias:
+
+1. Identify your coordinator:
+   - `ls -l /dev/serial/by-id/` (preferred; stable by USB ID)
+   - `dmesg | tail` (to see recent USB/tty assignments)
+2. Create a udev rule, for example:
+   ```
+   /etc/udev/rules.d/99-zigbee.rules
+   SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="zigbee-one"
+   ```
+3. Reload udev rules:
+   ```
+   udevadm control --reload-rules && udevadm trigger
+   ```
+4. Point Zigbee2MQTT at `/dev/zigbee-one` in `configuration.yaml` and use the same path in `docker-compose.yml`.
+
+Why it matters with multiple coordinators:
+
+- Prevents containers from accidentally grabbing the wrong adapter after a reboot.
+- Makes each Z2M instance explicit and stable (e.g., one adapter per network).
+- Avoids port conflicts when you run several coordinators on the same host.
+
 ### Example configuration.yaml
 
 ```yaml
