@@ -1,0 +1,46 @@
+{
+  "name": "Zigbee2MQTT Aggregated",
+  "version": "1.0.0",
+  "slug": "zigbee2mqtt_aggregated",
+  "description": "Aggregated Zigbee2MQTT UI that merges devices from multiple instances.",
+  "url": "https://github.com/pawelpp85/z2m-multiple-proxies",
+  "startup": "services",
+  "boot": "auto",
+  "init": false,
+  "ingress": true,
+  "ingress_port": 8102,
+  "ingress_entry": "/",
+  "panel_title": "Zigbee2MQTT Aggregated",
+  "panel_icon": "mdi:zigbee",
+  "icon": "icon.png",
+  "arch": ["aarch64", "amd64", "armhf", "armv7"],
+  "host_network": false,
+  "ports": {
+    "8102/tcp": null
+  },
+  "ports_description": {
+    "8102/tcp": "Frontend tcp-listen port"
+  },
+  "schema": {
+    "server_one": "url",
+    "server_two": "url",
+    "server_three": "url",
+    "auth_token_one": "str?",
+    "auth_token_two": "str?",
+    "auth_token_three": "str?",
+    "label_one": "str",
+    "label_two": "str",
+    "label_three": "str"
+  },
+  "options": {
+    "server_one": "http://127.0.0.1:8099",
+    "server_two": "http://127.0.0.1:8100",
+    "server_three": "http://127.0.0.1:8101",
+    "auth_token_one": "",
+    "auth_token_two": "",
+    "auth_token_three": "",
+    "label_one": "One",
+    "label_two": "Two",
+    "label_three": "Three"
+  }
+}

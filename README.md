@@ -9,6 +9,7 @@ This repository is derived from the official Zigbee2MQTT Home Assistant proxy ad
 - `zigbee2mqtt_one` (UI title: Zigbee2MQTT One): defaults to `http://127.0.0.1:8099`
 - `zigbee2mqtt_two` (UI title: Zigbee2MQTT Two): defaults to `http://127.0.0.1:8099`
 - `zigbee2mqtt_three` (UI title: Zigbee2MQTT Three): defaults to `http://127.0.0.1:8099`
+- `zigbee2mqtt_aggregated` (UI title: Zigbee2MQTT Aggregated): merges devices from multiple Z2M instances
 
 Add more proxies by copying any of the proxy folders, adjusting the slug, panel title, and default `target_port`.
 

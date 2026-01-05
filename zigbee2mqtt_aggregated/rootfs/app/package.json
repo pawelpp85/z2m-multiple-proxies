@@ -1,0 +1,13 @@
+{
+  "name": "zigbee2mqtt-aggregated",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-static-gzip": "^2.1.8",
+    "zigbee2mqtt-frontend": "^0.9.21",
+    "ws": "^8.17.1"
+  }
+}
