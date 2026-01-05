@@ -7,7 +7,7 @@
   "dependencies": {
     "express": "^4.19.2",
     "express-static-gzip": "^2.1.8",
-    "zigbee2mqtt-frontend": "^0.9.21",
+    "zigbee2mqtt-windfront": "^2.6.2",
     "ws": "^8.17.1"
   }
 }

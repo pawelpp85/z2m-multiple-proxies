@@ -4,11 +4,12 @@ const path = require("path");
 const express = require("express");
 const expressStaticGzip = require("express-static-gzip");
 const WebSocket = require("ws");
-const frontend = require("zigbee2mqtt-frontend");
+const FRONTEND_PACKAGE = "zigbee2mqtt-windfront";
 
 const OPTIONS_PATH = "/data/options.json";
 const LISTEN_PORT = 8102;
 const RECONNECT_DELAY_MS = 5000;
+const LOG_SUMMARY_INTERVAL_MS = 30000;
 
 const readOptions = () => {
   try {
@@ -41,6 +42,12 @@ const buildBackends = () => {
       url: options.server_three,
       token: options.auth_token_three,
     },
+    {
+      id: "four",
+      label: !options.label_four || options.label_four === "Four" ? "Original" : options.label_four,
+      url: options.server_four,
+      token: options.auth_token_four,
+    },
   ];
 
   return candidates.filter((entry) => !!entry.url);
@@ -49,6 +56,7 @@ const buildBackends = () => {
 let backends = [];
 const clients = new Set();
 const deviceNameLookup = new Map();
+const deviceIeeeLookup = new Map();
 const groupNameLookup = new Map();
 
 const labelPrefix = (label) => `${label} - `;
@@ -83,6 +91,7 @@ const broadcast = (message) => {
 
 const updateDeviceLookup = () => {
   deviceNameLookup.clear();
+  deviceIeeeLookup.clear();
   for (const backend of backends) {
     if (!backend.devicesRaw) {
       continue;
@@ -90,6 +99,9 @@ const updateDeviceLookup = () => {
     for (const device of backend.devicesRaw) {
       const prefixed = prefixName(backend, device.friendly_name);
       deviceNameLookup.set(prefixed, { backend, original: device.friendly_name });
+      if (device.ieee_address) {
+        deviceIeeeLookup.set(device.ieee_address, { backend, original: device.ieee_address });
+      }
     }
   }
 };
@@ -137,6 +149,20 @@ let lastBridgeInfo = null;
 let lastBridgeDefinitions = null;
 let lastBridgeExtensions = null;
 let lastBridgeState = "offline";
+let preferredBridgeInfoBackendId = null;
+
+const getBridgeInfoBackend = () => {
+  if (preferredBridgeInfoBackendId) {
+    const preferred = backends.find(
+      (backend) => backend.id === preferredBridgeInfoBackendId && backend.bridgeInfo,
+    );
+    if (preferred) {
+      return preferred;
+    }
+  }
+
+  return getPrimaryBackend();
+};
 
 const getPrimaryBackend = () => {
   return (
@@ -147,8 +173,22 @@ const getPrimaryBackend = () => {
   );
 };
 
+const updateBackendPermitJoin = (backend, time) => {
+  if (!backend.bridgeInfo || typeof time !== "number") {
+    return;
+  }
+
+  if (time > 0) {
+    backend.bridgeInfo.permit_join = true;
+    backend.bridgeInfo.permit_join_end = Date.now() + time * 1000;
+  } else {
+    backend.bridgeInfo.permit_join = false;
+    backend.bridgeInfo.permit_join_end = undefined;
+  }
+};
+
 const maybeBroadcastBridgeInfo = () => {
-  const backend = getPrimaryBackend();
+  const backend = getBridgeInfoBackend();
   if (!backend || !backend.bridgeInfo) {
     return;
   }
@@ -219,12 +259,21 @@ const mapPayloadNames = (payload, backendHint, isGroupRequest) => {
   const mapped = { ...payload };
   const keys = ["id", "from", "to", "device", "group", "friendly_name"];
   let backend = backendHint;
+  const ieeeRegex = /^0x[a-fA-F0-9]{16}$/;
 
   for (const key of keys) {
     if (typeof mapped[key] !== "string") {
       continue;
     }
     const name = mapped[key];
+    if (ieeeRegex.test(name)) {
+      const byIeee = deviceIeeeLookup.get(name);
+      if (byIeee) {
+        mapped[key] = byIeee.original;
+        backend = backend || byIeee.backend;
+        continue;
+      }
+    }
     const keyIsGroup = isGroupRequest ? key !== "device" : key === "group";
     const lookup = keyIsGroup ? groupNameLookup : deviceNameLookup;
     const byMap = lookup.get(name);
@@ -323,10 +372,12 @@ class Backend {
       switch (data.topic) {
         case "bridge/devices":
           this.devicesRaw = Array.isArray(data.payload) ? data.payload : [];
+          console.log(`[${this.label}] bridge/devices ${this.devicesRaw.length}`);
           broadcastAggregatedDevices();
           return;
         case "bridge/groups":
           this.groupsRaw = Array.isArray(data.payload) ? data.payload : [];
+          console.log(`[${this.label}] bridge/groups ${this.groupsRaw.length}`);
           broadcastAggregatedGroups();
           return;
         case "bridge/info":
@@ -355,6 +406,13 @@ class Backend {
           broadcast(data);
           return;
         default:
+          if (data.topic === "bridge/response/permit_join") {
+            const response = data.payload || {};
+            if (response.status === "error") {
+              updateBackendPermitJoin(this, 0);
+              maybeBroadcastBridgeInfo();
+            }
+          }
           if (data.topic.startsWith("bridge/response/")) {
             broadcast(data);
           }
@@ -369,116 +427,153 @@ class Backend {
   }
 }
 
-backends = buildBackends().map((config) => new Backend(config));
+const start = async () => {
+  const frontendModule = await import(FRONTEND_PACKAGE);
+  const frontend = frontendModule.default || frontendModule;
+  const frontendPath = frontend.getPath();
 
-const app = express();
-const frontendPath = frontend.getPath();
-const staticOptions = {
-  enableBrotli: true,
-  serveStatic: {
-    setHeaders: (res, filePath) => {
-      if (filePath.endsWith("index.html")) {
-        res.setHeader("Cache-Control", "no-store");
-      }
+  backends = buildBackends().map((config) => new Backend(config));
+
+  const app = express();
+  const staticOptions = {
+    enableBrotli: true,
+    serveStatic: {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "no-store");
+        }
+      },
     },
-  },
-};
+  };
 
-app.use(expressStaticGzip(frontendPath, staticOptions));
+  app.use(expressStaticGzip(frontendPath, staticOptions));
 
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server, path: "/api" });
+  const server = http.createServer(app);
+  const wss = new WebSocket.Server({ noServer: true });
 
-const sendInitialState = (ws) => {
-  if (lastBridgeInfo) {
-    ws.send(JSON.stringify({ topic: "bridge/info", payload: JSON.parse(lastBridgeInfo) }));
-  }
-  if (lastBridgeDefinitions) {
-    ws.send(JSON.stringify({ topic: "bridge/definitions", payload: JSON.parse(lastBridgeDefinitions) }));
-  }
-  if (lastBridgeExtensions) {
-    ws.send(JSON.stringify({ topic: "bridge/extensions", payload: JSON.parse(lastBridgeExtensions) }));
-  }
-  if (lastBridgeState) {
-    ws.send(JSON.stringify({ topic: "bridge/state", payload: lastBridgeState }));
-  }
-
-  ws.send(JSON.stringify({ topic: "bridge/devices", payload: aggregatedDevices() }));
-  ws.send(JSON.stringify({ topic: "bridge/groups", payload: aggregatedGroups() }));
-
-  for (const backend of backends) {
-    for (const [name, payload] of backend.deviceStates.entries()) {
-      ws.send(JSON.stringify({ topic: name, payload }));
+  const sendInitialState = (ws) => {
+    if (lastBridgeInfo) {
+      ws.send(JSON.stringify({ topic: "bridge/info", payload: JSON.parse(lastBridgeInfo) }));
     }
-    for (const [name, payload] of backend.availability.entries()) {
-      ws.send(JSON.stringify({ topic: `${name}/availability`, payload }));
+    if (lastBridgeDefinitions) {
+      ws.send(JSON.stringify({ topic: "bridge/definitions", payload: JSON.parse(lastBridgeDefinitions) }));
     }
-  }
-};
+    if (lastBridgeExtensions) {
+      ws.send(JSON.stringify({ topic: "bridge/extensions", payload: JSON.parse(lastBridgeExtensions) }));
+    }
+    if (lastBridgeState) {
+      ws.send(JSON.stringify({ topic: "bridge/state", payload: lastBridgeState }));
+    }
 
-const handleClientMessage = (data) => {
-  let message;
-  try {
-    message = JSON.parse(data);
-  } catch (error) {
-    console.error("Invalid client message", error);
-    return;
-  }
+    ws.send(JSON.stringify({ topic: "bridge/devices", payload: aggregatedDevices() }));
+    ws.send(JSON.stringify({ topic: "bridge/groups", payload: aggregatedGroups() }));
 
-  if (!message || !message.topic) {
-    return;
-  }
+    for (const backend of backends) {
+      for (const [name, payload] of backend.deviceStates.entries()) {
+        ws.send(JSON.stringify({ topic: name, payload }));
+      }
+      for (const [name, payload] of backend.availability.entries()) {
+        ws.send(JSON.stringify({ topic: `${name}/availability`, payload }));
+      }
+    }
+  };
 
-  const topic = message.topic;
-  const payload = message.payload;
-
-  if (topic.startsWith("bridge/request/")) {
-    const isGroupRequest = topic.startsWith("bridge/request/group/");
-    const { payload: mappedPayload, backend } = mapPayloadNames(payload, null, isGroupRequest);
-    const target = backend || getPrimaryBackend();
-    if (!target) {
-      console.warn("No backend available for bridge request", topic);
+  const handleClientMessage = (data) => {
+    let message;
+    try {
+      message = JSON.parse(data);
+    } catch (error) {
+      console.error("Invalid client message", error);
       return;
     }
 
-    target.send({ topic, payload: mappedPayload });
-    return;
+    if (!message || !message.topic) {
+      return;
+    }
+
+    const topic = message.topic;
+    const payload = message.payload;
+
+    if (topic.startsWith("bridge/request/")) {
+      const isGroupRequest = topic.startsWith("bridge/request/group/");
+      const { payload: mappedPayload, backend } = mapPayloadNames(payload, null, isGroupRequest);
+      const target = backend || getPrimaryBackend();
+      if (!target) {
+        console.warn("No backend available for bridge request", topic);
+        return;
+      }
+
+      if (topic === "bridge/request/permit_join") {
+        preferredBridgeInfoBackendId = target.id;
+        updateBackendPermitJoin(target, mappedPayload.time);
+        maybeBroadcastBridgeInfo();
+      }
+
+      target.send({ topic, payload: mappedPayload });
+      return;
+    }
+
+    const parts = topic.split("/");
+    const base = parts[0];
+    const deviceTarget = deviceNameLookup.get(base) || groupNameLookup.get(base);
+    if (deviceTarget) {
+      parts[0] = deviceTarget.original;
+      const mappedTopic = parts.join("/");
+      deviceTarget.backend.send({ topic: mappedTopic, payload });
+      return;
+    }
+
+    const fallback = getPrimaryBackend();
+    if (!fallback) {
+      console.warn("No backend available for device message", topic);
+      return;
+    }
+    fallback.send({ topic, payload });
+  };
+
+  server.on("upgrade", (request, socket, head) => {
+    if (request.url && request.url.endsWith("/api")) {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit("connection", ws, request);
+      });
+    } else {
+      socket.destroy();
+    }
+  });
+
+  wss.on("connection", (ws) => {
+    clients.add(ws);
+    console.log(`Frontend client connected (${clients.size} total)`);
+    sendInitialState(ws);
+
+    ws.on("message", (data) => handleClientMessage(data.toString()));
+    ws.on("close", () => clients.delete(ws));
+  });
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(frontendPath, "index.html"));
+  });
+
+  server.listen(LISTEN_PORT, () => {
+    console.log(`Zigbee2MQTT Aggregated listening on ${LISTEN_PORT}`);
+  });
+
+  setInterval(() => {
+    const deviceCount = aggregatedDevices().length;
+    const groupCount = aggregatedGroups().length;
+    console.log(`Aggregated totals: devices=${deviceCount} groups=${groupCount}`);
+  }, LOG_SUMMARY_INTERVAL_MS);
+
+  if (backends.length === 0) {
+    console.warn("No backends configured. Set server_one/server_two/server_three in options.");
   }
 
-  const parts = topic.split("/");
-  const base = parts[0];
-  const deviceTarget = deviceNameLookup.get(base) || groupNameLookup.get(base);
-  if (deviceTarget) {
-    parts[0] = deviceTarget.original;
-    const mappedTopic = parts.join("/");
-    deviceTarget.backend.send({ topic: mappedTopic, payload });
-    return;
+  for (const backend of backends) {
+    backend.connect();
   }
-
-  const fallback = getPrimaryBackend();
-  if (!fallback) {
-    console.warn("No backend available for device message", topic);
-    return;
-  }
-  fallback.send({ topic, payload });
 };
 
-wss.on("connection", (ws) => {
-  clients.add(ws);
-  sendInitialState(ws);
-
-  ws.on("message", (data) => handleClientMessage(data.toString()));
-  ws.on("close", () => clients.delete(ws));
+start().catch((error) => {
+  console.error("Failed to start aggregated frontend", error);
+  process.exit(1);
 });
-
-server.listen(LISTEN_PORT, () => {
-  console.log(`Zigbee2MQTT Aggregated listening on ${LISTEN_PORT}`);
-});
-
-if (backends.length === 0) {
-  console.warn("No backends configured. Set server_one/server_two/server_three in options.");
-}
-
-for (const backend of backends) {
-  backend.connect();
-}

@@ -1,6 +1,6 @@
 {
   "name": "Zigbee2MQTT Aggregated",
-  "version": "1.0.0",
+  "version": "1.0.8",
   "slug": "zigbee2mqtt_aggregated",
   "description": "Aggregated Zigbee2MQTT UI that merges devices from multiple instances.",
   "url": "https://github.com/pawelpp85/z2m-multiple-proxies",
@@ -25,22 +25,28 @@
     "server_one": "url",
     "server_two": "url",
     "server_three": "url",
+    "server_four": "url",
     "auth_token_one": "str?",
     "auth_token_two": "str?",
     "auth_token_three": "str?",
+    "auth_token_four": "str?",
     "label_one": "str",
     "label_two": "str",
-    "label_three": "str"
+    "label_three": "str",
+    "label_four": "str"
   },
   "options": {
     "server_one": "http://127.0.0.1:8099",
     "server_two": "http://127.0.0.1:8100",
     "server_three": "http://127.0.0.1:8101",
+    "server_four": "http://addon_45df7312_zigbee2mqtt:8099",
     "auth_token_one": "",
     "auth_token_two": "",
     "auth_token_three": "",
+    "auth_token_four": "",
     "label_one": "One",
     "label_two": "Two",
-    "label_three": "Three"
+    "label_three": "Three",
+    "label_four": "Original"
   }
 }
