@@ -1,6 +1,6 @@
 {
   "name": "Zigbee2MQTT Aggregated",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "slug": "zigbee2mqtt_aggregated",
   "description": "Aggregated Zigbee2MQTT UI that merges devices from multiple instances.",
   "url": "https://github.com/pawelpp85/z2m-multiple-proxies",
