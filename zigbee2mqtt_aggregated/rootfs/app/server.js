@@ -150,12 +150,38 @@ let lastBridgeDefinitions = null;
 let lastBridgeExtensions = null;
 let lastBridgeState = "offline";
 let preferredBridgeInfoBackendId = null;
+let networkMapBackendId = null;
 
 const getBridgeInfoBackend = () => {
   if (preferredBridgeInfoBackendId) {
     const preferred = backends.find(
       (backend) => backend.id === preferredBridgeInfoBackendId && backend.bridgeInfo,
     );
+    if (preferred) {
+      return preferred;
+    }
+  }
+
+  return getPrimaryBackend();
+};
+
+const getNetworkMapBackend = () => {
+  const desired = (options.networkmap_backend || "").trim();
+  if (desired) {
+    const normalized = desired.toLowerCase();
+    const direct = backends.find(
+      (backend) => backend.id === normalized || backend.label.toLowerCase() === normalized,
+    );
+    if (direct) {
+      return direct;
+    }
+    if (normalized === "auto") {
+      return getBridgeInfoBackend();
+    }
+  }
+
+  if (preferredBridgeInfoBackendId) {
+    const preferred = backends.find((backend) => backend.id === preferredBridgeInfoBackendId);
     if (preferred) {
       return preferred;
     }
@@ -413,6 +439,11 @@ class Backend {
               maybeBroadcastBridgeInfo();
             }
           }
+          if (data.topic === "bridge/response/networkmap") {
+            if (networkMapBackendId && this.id !== networkMapBackendId) {
+              return;
+            }
+          }
           if (data.topic.startsWith("bridge/response/")) {
             broadcast(data);
           }
@@ -493,6 +524,17 @@ const start = async () => {
 
     const topic = message.topic;
     const payload = message.payload;
+
+    if (topic === "bridge/request/networkmap") {
+      const target = getNetworkMapBackend();
+      if (!target) {
+        console.warn("No backend available for networkmap", topic);
+        return;
+      }
+      networkMapBackendId = target.id;
+      target.send({ topic, payload });
+      return;
+    }
 
     if (topic.startsWith("bridge/request/")) {
       const isGroupRequest = topic.startsWith("bridge/request/group/");
