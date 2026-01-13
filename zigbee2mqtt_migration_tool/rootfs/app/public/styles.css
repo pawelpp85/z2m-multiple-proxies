@@ -155,6 +155,12 @@ h1 {
   flex-wrap: wrap;
 }
 
+.counts-right {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .counts input[type="search"] {
   width: min(260px, 100%);
   padding: 7px 10px;
@@ -162,7 +168,7 @@ h1 {
   border: 1px solid rgba(148, 163, 184, 0.35);
   font-family: var(--display);
   font-size: 13px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.14);
   color: var(--ink);
 }
 
@@ -279,6 +285,35 @@ button.secondary {
   border: 1px solid var(--stroke);
 }
 
+button.secondary.danger {
+  background: rgba(124, 18, 26, 0.35);
+  color: rgba(255, 210, 210, 0.85);
+  border: 1px solid rgba(124, 18, 26, 0.45);
+}
+
+.instance-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0 14px;
+}
+
+.instance-filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.instance-filters input[type="checkbox"] {
+  accent-color: var(--accent-2);
+}
+
 button.ghost {
   background: transparent;
   color: var(--ink-soft);
@@ -324,6 +359,41 @@ button:disabled {
 .activity-item.rename {
   border-color: rgba(93, 168, 255, 0.45);
   background: rgba(93, 168, 255, 0.12);
+}
+
+.status-card.single {
+  background: linear-gradient(135deg, rgba(104, 23, 52, 0.45), rgba(164, 44, 62, 0.25));
+}
+
+.status-card.multi {
+  border-color: rgba(255, 86, 86, 0.55);
+}
+
+.pairing-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.alert-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: rgba(255, 86, 86, 0.7);
+  box-shadow: 0 0 8px rgba(255, 86, 86, 0.6);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.4;
+  }
 }
 
 .activity-item .message {

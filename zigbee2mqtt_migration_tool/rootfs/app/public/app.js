@@ -14,12 +14,14 @@ const elements = {
   toast: document.getElementById("toast"),
   deviceSearch: document.getElementById("deviceSearch"),
   resetMappings: document.getElementById("resetMappings"),
+  instanceFilters: document.getElementById("instanceFilters"),
 };
 
 let lastState = null;
 let toastTimeout = null;
 let sortKey = "mappedName";
 let sortDir = "asc";
+let selectedInstances = new Set();
 
 const showToast = (message) => {
   elements.toast.textContent = message;
@@ -41,6 +43,7 @@ const formatRemaining = (seconds) => {
 
 const renderPairing = (pairing) => {
   const body = elements.pairingStatus.querySelector(".status-body");
+  elements.pairingStatus.classList.remove("single", "multi");
   if (!pairing || pairing.length === 0) {
     body.textContent = "Pairing is OFF on all instances";
     return;
@@ -48,7 +51,13 @@ const renderPairing = (pairing) => {
   const message = pairing
     .map((entry) => `${entry.label} (${formatRemaining(entry.remaining)})`)
     .join(", ");
-  body.textContent = `Pairing enabled on: ${message}`;
+  if (pairing.length === 1) {
+    elements.pairingStatus.classList.add("single");
+    body.textContent = `Pairing enabled on: ${message}`;
+  } else {
+    elements.pairingStatus.classList.add("multi");
+    body.innerHTML = `<span class="pairing-alert"><span class="alert-dot"></span>Pairing enabled on: ${message}</span>`;
+  }
 };
 
 const renderOverview = (overview) => {
@@ -93,10 +102,16 @@ const sortDevices = (devices) => {
 
 const filterDevices = (devices) => {
   const query = elements.deviceSearch.value.trim().toLowerCase();
-  if (!query) {
-    return devices;
+  let filtered = devices;
+  if (query) {
+    filtered = filtered.filter((device) => device.mappedName.toLowerCase().includes(query));
   }
-  return devices.filter((device) => device.mappedName.toLowerCase().includes(query));
+  if (selectedInstances.size > 0) {
+    filtered = filtered.filter((device) =>
+      device.instances.some((instance) => selectedInstances.has(instance)),
+    );
+  }
+  return filtered;
 };
 
 const renderTable = (devices, migrationAvailable) => {
@@ -165,6 +180,28 @@ const renderLogs = (logs) => {
     .join("");
 };
 
+const renderInstanceFilters = (backends) => {
+  if (!backends || backends.length === 0) {
+    elements.instanceFilters.innerHTML = "";
+    return;
+  }
+  if (selectedInstances.size === 0) {
+    backends.forEach((backend) => selectedInstances.add(backend.label));
+  }
+  elements.instanceFilters.innerHTML = backends
+    .map(
+      (backend) => `
+        <label>
+          <input type="checkbox" data-instance="${backend.label}" ${
+            selectedInstances.has(backend.label) ? "checked" : ""
+          } />
+          ${backend.label}
+        </label>
+      `,
+    )
+    .join("");
+};
+
 const loadState = async () => {
   try {
     const response = await fetch(stateUrl);
@@ -172,6 +209,7 @@ const loadState = async () => {
     lastState = data;
     renderOverview(data.overview || {});
     renderPairing(data.pairing || []);
+    renderInstanceFilters(data.backends || []);
     renderTable(data.devices || [], data.migrationAvailable);
     elements.mappingCount.textContent = `${data.mappingsCount || 0} mappings`;
   } catch (error) {
@@ -278,6 +316,23 @@ elements.deviceTable.addEventListener("input", (event) => {
 });
 
 elements.deviceSearch.addEventListener("input", () => {
+  renderTable(lastState?.devices || [], lastState?.migrationAvailable);
+});
+
+elements.instanceFilters.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("input[type=\"checkbox\"]");
+  if (!checkbox) {
+    return;
+  }
+  const label = checkbox.dataset.instance;
+  if (!label) {
+    return;
+  }
+  if (checkbox.checked) {
+    selectedInstances.add(label);
+  } else {
+    selectedInstances.delete(label);
+  }
   renderTable(lastState?.devices || [], lastState?.migrationAvailable);
 });
 

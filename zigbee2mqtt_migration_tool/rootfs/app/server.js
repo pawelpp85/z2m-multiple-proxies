@@ -195,6 +195,11 @@ const rebuildDeviceIndex = () => {
       entry.interviewCompleted = entry.interviewCompleted && device.interview_completed !== false;
       if (typeof device.linkquality === "number") {
         entry.linkquality = device.linkquality;
+      } else if (backend.deviceStates && backend.deviceStates.has(device.friendly_name)) {
+        const state = backend.deviceStates.get(device.friendly_name);
+        if (state && typeof state.linkquality === "number") {
+          entry.linkquality = state.linkquality;
+        }
       }
 
       if (!mappings[ieee]) {
@@ -498,7 +503,9 @@ class Backend {
           return;
         case "bridge/info":
           this.bridgeInfo = data.payload || null;
-          if (this.bridgeInfo && typeof this.bridgeInfo.permit_join_timeout === "number") {
+          if (this.bridgeInfo && typeof this.bridgeInfo.permit_join_end === "number") {
+            this.permitJoinEndsAt = this.bridgeInfo.permit_join_end;
+          } else if (this.bridgeInfo && typeof this.bridgeInfo.permit_join_timeout === "number") {
             this.permitJoinEndsAt = Date.now() + this.bridgeInfo.permit_join_timeout * 1000;
           } else if (this.bridgeInfo && this.bridgeInfo.permit_join === false) {
             this.permitJoinEndsAt = null;

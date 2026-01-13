@@ -61,10 +61,13 @@
           </div>
           <div class="counts">
             <input type="search" id="deviceSearch" placeholder="Search by name" />
-            <span id="mappingCount">0 mappings</span>
-            <button class="secondary" id="resetMappings">Reset mappings</button>
+            <div class="counts-right">
+              <span id="mappingCount">0 mappings</span>
+              <button class="secondary danger" id="resetMappings">Reset mappings</button>
+            </div>
           </div>
         </div>
+        <div class="instance-filters" id="instanceFilters"></div>
         <div class="table" id="deviceTable">
           <div class="row header">
             <button class="sort" data-sort="mappedName">Mapped name</button>
