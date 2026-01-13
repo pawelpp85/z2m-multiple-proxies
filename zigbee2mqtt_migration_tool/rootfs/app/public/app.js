@@ -220,7 +220,13 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
         <div>
           ${
             device.type === "Router"
-              ? '<span class="type-icon router" title="Router"></span>'
+              ? `<svg class="type-icon router" viewBox="0 0 24 24" aria-hidden="true" title="Router">
+                  <path d="M4 14c3-3 13-3 16 0"></path>
+                  <path d="M7 17c2-2 8-2 10 0"></path>
+                  <path d="M11 20h2"></path>
+                  <circle cx="12" cy="11" r="1.4"></circle>
+                  <path d="M12 9V4"></path>
+                </svg>`
               : '<span class="type-icon end" title="End device"></span>'
           }
         </div>

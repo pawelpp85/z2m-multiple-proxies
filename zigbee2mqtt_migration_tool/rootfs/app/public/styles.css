@@ -339,9 +339,14 @@ h1 {
 }
 
 .type-icon.router {
-  border-radius: 2px;
-  background: rgba(74, 163, 255, 0.3);
-  border-color: rgba(74, 163, 255, 0.6);
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  width: 18px;
+  height: 18px;
+  stroke: rgba(74, 163, 255, 0.95);
+  fill: none;
+  stroke-width: 1.6;
 }
 
 .type-icon.end {
