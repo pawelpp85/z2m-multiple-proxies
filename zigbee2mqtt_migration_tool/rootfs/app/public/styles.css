@@ -358,6 +358,12 @@ button.secondary {
   border: 1px solid var(--stroke);
 }
 
+button.secondary.primary {
+  background: rgba(74, 163, 255, 0.8);
+  color: #08121c;
+  border: 1px solid rgba(74, 163, 255, 0.6);
+}
+
 button.secondary.danger {
   background: rgba(124, 18, 26, 0.35);
   color: rgba(255, 210, 210, 0.85);
