@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zigbee2MQTT Migration tool</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Migration control</p>
+          <h1>Zigbee2MQTT Migration tool</h1>
+          <p class="subtitle">Remember IEEE addresses, keep names, and guide devices between networks.</p>
+        </div>
+        <div class="status-card" id="pairingStatus">
+          <p class="status-title">Pairing</p>
+          <p class="status-body">Loading pairing status...</p>
+        </div>
+      </header>
+
+      <section class="overview">
+        <div class="overview-card">
+          <p class="label">Devices</p>
+          <p class="value" id="overviewDevices">-</p>
+        </div>
+        <div class="overview-card">
+          <p class="label">Online</p>
+          <p class="value" id="overviewOnline">-</p>
+        </div>
+        <div class="overview-card">
+          <p class="label">Router</p>
+          <p class="value" id="overviewRouter">-</p>
+        </div>
+        <div class="overview-card">
+          <p class="label">End device</p>
+          <p class="value" id="overviewEnd">-</p>
+        </div>
+        <div class="overview-card accent">
+          <p class="label">Low LQI</p>
+          <p class="value" id="overviewLqi">-</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Device mappings</h2>
+            <p>Mapping is stored on disk and reused for future joins.</p>
+          </div>
+          <div class="counts">
+            <span id="mappingCount">0 mappings</span>
+          </div>
+        </div>
+        <div class="table" id="deviceTable">
+          <div class="row header">
+            <div>IEEE address</div>
+            <div>Mapped name</div>
+            <div>Instances</div>
+            <div>Type</div>
+            <div>LQI</div>
+            <div>Online</div>
+            <div>Actions</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Recent activity</h2>
+            <p>Combined logs from all configured instances.</p>
+          </div>
+        </div>
+        <div class="activity" id="activityLog"></div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

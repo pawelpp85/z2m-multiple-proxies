@@ -1,0 +1,52 @@
+{
+  "name": "Zigbee2MQTT Migration tool",
+  "version": "0.0.1b1",
+  "slug": "zigbee2mqtt_migration_tool",
+  "description": "Migration helper that remembers IEEE addresses and device names across multiple Zigbee2MQTT instances.",
+  "url": "https://github.com/pawelpp85/z2m-multiple-proxies",
+  "startup": "services",
+  "boot": "auto",
+  "init": false,
+  "ingress": true,
+  "ingress_port": 8104,
+  "ingress_entry": "/",
+  "panel_title": "Zigbee2MQTT Migration",
+  "panel_icon": "mdi:swap-horizontal",
+  "icon": "icon.png",
+  "arch": ["aarch64", "amd64", "armhf", "armv7"],
+  "host_network": false,
+  "ports": {
+    "8104/tcp": null
+  },
+  "ports_description": {
+    "8104/tcp": "Frontend tcp-listen port"
+  },
+  "schema": {
+    "server_one": "url",
+    "server_two": "url",
+    "server_three": "url",
+    "server_four": "url",
+    "auth_token_one": "str?",
+    "auth_token_two": "str?",
+    "auth_token_three": "str?",
+    "auth_token_four": "str?",
+    "label_one": "str",
+    "label_two": "str",
+    "label_three": "str",
+    "label_four": "str"
+  },
+  "options": {
+    "server_one": "http://127.0.0.1:8099",
+    "server_two": "http://127.0.0.1:8100",
+    "server_three": "http://127.0.0.1:8101",
+    "server_four": "http://addon_45df7312_zigbee2mqtt:8099",
+    "auth_token_one": "",
+    "auth_token_two": "",
+    "auth_token_three": "",
+    "auth_token_four": "",
+    "label_one": "One",
+    "label_two": "Two",
+    "label_three": "Three",
+    "label_four": "Original"
+  }
+}
