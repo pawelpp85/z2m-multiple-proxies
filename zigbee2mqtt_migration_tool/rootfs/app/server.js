@@ -292,16 +292,8 @@ const scheduleAutoRename = () => {
     if (!mapping || !mapping.name) {
       continue;
     }
-    if (!isInterviewComplete(entry, backend, currentName)) {
-      continue;
-    }
     const currentName = firstKnownName(entry);
     if (!currentName || currentName === mapping.name) {
-      continue;
-    }
-    const pending = pendingRenames.get(ieee);
-    const now = Date.now();
-    if (pending && pending.name === mapping.name && now - pending.lastAttempt < RENAME_COOLDOWN_MS) {
       continue;
     }
     const backendId = firstBackendId(entry);
@@ -310,6 +302,14 @@ const scheduleAutoRename = () => {
     }
     const backend = backends.find((candidate) => candidate.id === backendId);
     if (!backend) {
+      continue;
+    }
+    if (!isInterviewComplete(entry, backend, currentName)) {
+      continue;
+    }
+    const pending = pendingRenames.get(ieee);
+    const now = Date.now();
+    if (pending && pending.name === mapping.name && now - pending.lastAttempt < RENAME_COOLDOWN_MS) {
       continue;
     }
 
@@ -818,17 +818,14 @@ app.post("/api/reset", (req, res) => {
 });
 
 app.post("/api/mappings/apply", (req, res) => {
-  let applied = 0;
-  let skipped = 0;
+  const mismatches = [];
   for (const [ieee, mapping] of Object.entries(mappings)) {
     const desired = mapping && mapping.name ? mapping.name.trim() : "";
     if (!desired) {
-      skipped += 1;
       continue;
     }
     const entry = deviceIndex.get(ieee);
     if (!entry) {
-      skipped += 1;
       continue;
     }
     for (const backend of backends) {
@@ -836,16 +833,56 @@ app.post("/api/mappings/apply", (req, res) => {
       if (!current || current === desired) {
         continue;
       }
-      sendRename(backend, current, desired);
-      pushActivity({
-        time: nowIso(),
-        type: "rename",
-        message: `${backend.label} - Apply mapping: ${current} -> ${desired}`,
+      mismatches.push({
+        ieee,
+        backendId: backend.id,
+        backendLabel: backend.label,
+        current,
+        desired,
       });
-      applied += 1;
     }
   }
-  res.json({ ok: true, applied, skipped });
+  res.json({ ok: true, mismatches });
+});
+
+app.post("/api/mappings/apply-one", (req, res) => {
+  const { ieee, backendId } = req.body || {};
+  if (!ieee || typeof ieee !== "string") {
+    res.status(400).json({ error: "Missing IEEE address" });
+    return;
+  }
+  if (!backendId || typeof backendId !== "string") {
+    res.status(400).json({ error: "Missing backend id" });
+    return;
+  }
+  const mapping = mappings[ieee];
+  const desired = mapping && mapping.name ? mapping.name.trim() : "";
+  if (!desired) {
+    res.status(400).json({ error: "Missing mapping name" });
+    return;
+  }
+  const entry = deviceIndex.get(ieee);
+  if (!entry) {
+    res.status(404).json({ error: "Device not found" });
+    return;
+  }
+  const backend = backends.find((item) => item.id === backendId);
+  if (!backend) {
+    res.status(404).json({ error: "Backend not found" });
+    return;
+  }
+  const current = entry.namesByBackend[backend.id];
+  if (!current || current === desired) {
+    res.json({ ok: true, applied: false });
+    return;
+  }
+  sendRename(backend, current, desired);
+  pushActivity({
+    time: nowIso(),
+    type: "rename",
+    message: `${backend.label} - Apply mapping: ${current} -> ${desired}`,
+  });
+  res.json({ ok: true, applied: true });
 });
 
 const requestRemoval = (ieee) => {
