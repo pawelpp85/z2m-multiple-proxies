@@ -54,20 +54,20 @@
       </section>
 
       <section class="panel">
-        <div class="panel-header">
-          <div>
+        <div class="panel-header mapping-header">
+          <div class="panel-title">
             <h2>Device mappings</h2>
             <p>Mapping is stored on disk and reused for future joins.</p>
           </div>
-          <div class="counts">
+          <div class="mapping-controls">
             <input type="search" id="deviceSearch" placeholder="Search by name" />
-            <div class="counts-right">
-              <span id="mappingCount">0 mappings</span>
-              <button class="secondary danger" id="resetMappings">Reset mappings</button>
-            </div>
+            <div class="instance-filters" id="instanceFilters"></div>
+          </div>
+          <div class="counts-right">
+            <span id="mappingCount">0 mappings</span>
+            <button class="secondary danger" id="resetMappings">Reset mappings</button>
           </div>
         </div>
-        <div class="instance-filters" id="instanceFilters"></div>
         <div class="table" id="deviceTable">
           <div class="row header">
             <button class="sort" data-sort="mappedName">Mapped name</button>

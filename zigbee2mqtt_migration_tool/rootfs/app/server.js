@@ -69,6 +69,7 @@ const buildWsUrl = (url, token) => {
 let mappings = {};
 let backends = [];
 let deviceIndex = new Map();
+const deviceNameToIeee = new Map();
 const recentActivity = [];
 const pendingRenames = new Map();
 const pendingRemovals = new Map();
@@ -162,6 +163,7 @@ const isDeviceOnline = (backend, device) => {
 const rebuildDeviceIndex = () => {
   const nextIndex = new Map();
   let mappingsChanged = false;
+  deviceNameToIeee.clear();
 
   for (const backend of backends) {
     if (!backend.devicesRaw) {
@@ -189,6 +191,7 @@ const rebuildDeviceIndex = () => {
       }
       entry.instances.push(backend.label);
       entry.namesByBackend[backend.id] = device.friendly_name;
+      deviceNameToIeee.set(`${backend.id}:${device.friendly_name}`, ieee);
       entry.model = entry.model || device.model_id || "";
       entry.type = entry.type !== "Unknown" ? entry.type : normalizeDeviceType(device);
       entry.online = entry.online || isDeviceOnline(backend, device);
@@ -491,6 +494,18 @@ class Backend {
     if (typeof data.topic === "string" && data.topic.endsWith("/availability")) {
       const base = data.topic.split("/availability")[0];
       this.availability.set(base, data.payload);
+      const ieee = deviceNameToIeee.get(`${this.id}:${base}`);
+      if (ieee && deviceIndex.has(ieee)) {
+        const entry = deviceIndex.get(ieee);
+        const availability = data.payload;
+        let online = entry.online;
+        if (typeof availability === "string") {
+          online = availability.toLowerCase() === "online";
+        } else if (availability && typeof availability.state === "string") {
+          online = availability.state.toLowerCase() === "online";
+        }
+        entry.online = online;
+      }
       return;
     }
 
@@ -565,6 +580,20 @@ class Backend {
       }
       this.deviceStates.set(name, payload);
       this.deviceSeenAt.set(name, Date.now());
+      const ieee = deviceNameToIeee.get(`${this.id}:${name}`);
+      if (ieee && deviceIndex.has(ieee)) {
+        const entry = deviceIndex.get(ieee);
+        if (typeof payload.linkquality === "number") {
+          entry.linkquality = payload.linkquality;
+        }
+        const pseudo = {
+          friendly_name: name,
+          availability: this.availability.get(name),
+          last_seen: payload.last_seen,
+          linkquality: payload.linkquality,
+        };
+        entry.online = isDeviceOnline(this, pseudo);
+      }
     }
   }
 }

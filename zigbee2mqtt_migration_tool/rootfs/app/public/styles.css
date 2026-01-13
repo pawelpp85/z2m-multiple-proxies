@@ -149,10 +149,11 @@ h1 {
   gap: 4px;
 }
 
-.filter-stack {
+.mapping-controls {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
 
 .panel-header h2 {
@@ -174,8 +175,8 @@ h1 {
   color: var(--ink-soft);
 }
 
-.filter-stack input[type="search"] {
-  width: min(240px, 100%);
+.mapping-controls input[type="search"] {
+  width: min(220px, 100%);
   padding: 7px 10px;
   border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.35);
@@ -185,7 +186,7 @@ h1 {
   color: var(--ink);
 }
 
-.filter-stack input[type="search"]::placeholder {
+.mapping-controls input[type="search"]::placeholder {
   color: rgba(245, 247, 251, 0.6);
 }
 
