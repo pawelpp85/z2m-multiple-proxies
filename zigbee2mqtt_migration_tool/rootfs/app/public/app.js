@@ -13,6 +13,7 @@ const elements = {
   mappingCount: document.getElementById("mappingCount"),
   toast: document.getElementById("toast"),
   deviceSearch: document.getElementById("deviceSearch"),
+  resetMappings: document.getElementById("resetMappings"),
 };
 
 let lastState = null;
@@ -199,6 +200,11 @@ const postJson = async (url, payload) => {
   return response.json();
 };
 
+const postEmpty = async (url) => {
+  const response = await fetch(url, { method: "POST" });
+  return response.json();
+};
+
 const handleAction = async (action, row) => {
   const ieee = row.dataset.ieee;
   const nameInput = row.querySelector("input[data-field=\"name\"]");
@@ -273,6 +279,19 @@ elements.deviceTable.addEventListener("input", (event) => {
 
 elements.deviceSearch.addEventListener("input", () => {
   renderTable(lastState?.devices || [], lastState?.migrationAvailable);
+});
+
+elements.resetMappings.addEventListener("click", async () => {
+  if (!confirm("Reset all mappings and reload from instances?")) {
+    return;
+  }
+  const result = await postEmpty("api/reset");
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  showToast("Mappings reset");
+  loadState();
 });
 
 loadState();

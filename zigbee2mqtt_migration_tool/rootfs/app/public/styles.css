@@ -151,19 +151,23 @@ h1 {
   align-items: center;
   font-weight: 600;
   color: var(--ink-soft);
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.filters {
-  margin: 8px 0 14px;
-}
-
-.filters input {
-  width: min(360px, 100%);
-  padding: 8px 10px;
+.counts input[type="search"] {
+  width: min(260px, 100%);
+  padding: 7px 10px;
   border-radius: 10px;
-  border: 1px solid var(--stroke);
+  border: 1px solid rgba(148, 163, 184, 0.35);
   font-family: var(--display);
   font-size: 13px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+.counts input[type="search"]::placeholder {
+  color: rgba(245, 247, 251, 0.6);
 }
 
 .table {

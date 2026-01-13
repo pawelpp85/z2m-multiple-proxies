@@ -147,6 +147,15 @@ const isDeviceOnline = (backend, device) => {
       return Date.now() - seen < LAST_SEEN_ONLINE_MS;
     }
   }
+  if (backend.deviceSeenAt && key && backend.deviceSeenAt.has(key)) {
+    const seen = backend.deviceSeenAt.get(key);
+    if (typeof seen === "number") {
+      return Date.now() - seen < LAST_SEEN_ONLINE_MS;
+    }
+  }
+  if (typeof device.linkquality === "number" && device.linkquality > 0) {
+    return true;
+  }
   return false;
 };
 
@@ -420,6 +429,7 @@ class Backend {
     this.bridgeInfo = null;
     this.permitJoinEndsAt = null;
     this.deviceStates = new Map();
+    this.deviceSeenAt = new Map();
   }
 
   connect() {
@@ -492,6 +502,9 @@ class Backend {
         case "bridge/logging":
           if (data.payload && typeof data.payload.message === "string") {
             const message = data.payload.message;
+            if (/MQTT publish:/i.test(message)) {
+              return;
+            }
             const joined = /(joined|interviewing|interview completed)/i.test(message);
             const left = /(left|leave|removed|deleted)/i.test(message);
             if (joined || left) {
@@ -539,6 +552,7 @@ class Backend {
         }
       }
       this.deviceStates.set(name, payload);
+      this.deviceSeenAt.set(name, Date.now());
     }
   }
 }
@@ -626,6 +640,19 @@ app.delete("/api/mappings/:ieee", (req, res) => {
   }
   delete mappings[ieee];
   saveMappings();
+  res.json({ ok: true });
+});
+
+app.post("/api/reset", (req, res) => {
+  mappings = {};
+  try {
+    fs.unlinkSync(MAP_PATH);
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.error("Failed to remove mapping file", error);
+    }
+  }
+  rebuildDeviceIndex();
   res.json({ ok: true });
 });
 
