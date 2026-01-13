@@ -181,11 +181,13 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
               scanAvailable ? "" : " disabled"
             } aria-label="Scan QR code">
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="3" width="6" height="6" rx="1"></rect>
-                <rect x="15" y="3" width="6" height="6" rx="1"></rect>
-                <rect x="3" y="15" width="6" height="6" rx="1"></rect>
-                <rect x="9" y="9" width="6" height="6" rx="1"></rect>
-                <path d="M15 15h6v6h-6z"></path>
+                <rect x="2.5" y="2.5" width="7" height="7" rx="1.2"></rect>
+                <rect x="14.5" y="2.5" width="7" height="7" rx="1.2"></rect>
+                <rect x="2.5" y="14.5" width="7" height="7" rx="1.2"></rect>
+                <rect x="10.2" y="10.2" width="3.6" height="3.6" rx="0.6"></rect>
+                <rect x="14.5" y="14.5" width="7" height="7" rx="1.2"></rect>
+                <path d="M7.2 18.8h5.4"></path>
+                <path d="M18.8 7.2v5.4"></path>
               </svg>
             </button>
             ${
@@ -243,7 +245,13 @@ const renderLogs = (logs) => {
   }
   elements.activityLog.innerHTML = filtered
     .map((entry) => {
-      const time = new Date(entry.time).toLocaleString();
+      const stamp = new Date(entry.time);
+      const today = new Date();
+      const sameDay =
+        stamp.getFullYear() === today.getFullYear() &&
+        stamp.getMonth() === today.getMonth() &&
+        stamp.getDate() === today.getDate();
+      const time = sameDay ? stamp.toLocaleTimeString() : stamp.toLocaleString();
       const typeClass = entry.type ? ` ${entry.type}` : "";
       return `
         <div class="activity-item${typeClass}">
