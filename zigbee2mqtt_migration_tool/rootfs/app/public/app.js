@@ -15,6 +15,9 @@ const elements = {
   deviceSearch: document.getElementById("deviceSearch"),
   resetMappings: document.getElementById("resetMappings"),
   instanceFilters: document.getElementById("instanceFilters"),
+  qrScanner: document.getElementById("qrScanner"),
+  qrVideo: document.getElementById("qrVideo"),
+  qrClose: document.getElementById("qrClose"),
 };
 
 let lastState = null;
@@ -23,6 +26,11 @@ let sortKey = "mappedName";
 let sortDir = "asc";
 let selectedInstances = new Set();
 let lastLogs = [];
+let scannerStream = null;
+let scannerTarget = null;
+const isMobile = window.matchMedia("(pointer: coarse)").matches;
+const canScan =
+  isMobile && "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
 
 const showToast = (message) => {
   elements.toast.textContent = message;
@@ -82,6 +90,8 @@ const sortDevices = (devices) => {
           return item.mappedName || "";
         case "ieee":
           return item.ieee || "";
+        case "installCode":
+          return item.installCode || "";
         case "instances":
           return item.instances ? item.instances.join(", ") : "";
         case "type":
@@ -121,11 +131,12 @@ const filterDevices = (devices) => {
   return filtered;
 };
 
-const renderTable = (devices, migrationAvailable) => {
+const renderTable = (devices, migrationAvailable, backends = []) => {
   const rows = [
     `<div class="row header">
       <button class="sort" data-sort="mappedName">Mapped name</button>
       <button class="sort" data-sort="ieee">IEEE address</button>
+      <button class="sort" data-sort="installCode">Install code</button>
       <button class="sort" data-sort="instances">Instances</button>
       <button class="sort" data-sort="type">Type</button>
       <button class="sort" data-sort="lqi">LQI</button>
@@ -137,12 +148,19 @@ const renderTable = (devices, migrationAvailable) => {
   const filtered = filterDevices(devices);
   const sorted = sortDevices(filtered);
 
+  const backendOptions = backends
+    .map((backend) => `<option value="${backend.id}">${backend.label}</option>`)
+    .join("");
+
   sorted.forEach((device) => {
     const instances = device.instances && device.instances.length > 0 ? device.instances.join(", ") : "-";
     const onlineClass = device.online ? "" : "offline";
     const onlineLabel = device.online ? "Online" : "Offline";
     const lqi = typeof device.linkquality === "number" ? device.linkquality : "-";
     const disabled = device.instances.length === 0;
+    const hasInstall = !!device.installCode;
+    const installLabel = hasInstall ? "Edit" : "+";
+    const installClass = hasInstall ? "" : "empty";
 
     rows.push(`
       <div class="row data" data-ieee="${device.ieee}">
@@ -151,6 +169,18 @@ const renderTable = (devices, migrationAvailable) => {
           <button class="ghost save-button hidden" data-action="save">Save</button>
         </div>
         <div class="mono">${device.ieee}</div>
+        <div class="install-cell">
+          <button class="ghost install-toggle ${installClass}" data-action="install-edit">${installLabel}</button>
+          <div class="install-editor hidden">
+            <input type="text" value="${device.installCode || ""}" data-field="install-code" />
+            <button class="ghost" data-action="install-save">Save</button>
+            ${canScan ? `<button class="ghost" data-action="install-scan">Scan</button>` : ""}
+            <select data-action="install-apply">
+              <option value="" selected disabled>Apply to...</option>
+              ${backendOptions}
+            </select>
+          </div>
+        </div>
         <div>${instances}</div>
         <div>${device.type || "Unknown"}</div>
         <div>${lqi}</div>
@@ -238,7 +268,7 @@ const loadState = async () => {
     renderOverview(data.overview || {});
     renderPairing(data.pairing || []);
     renderInstanceFilters(data.backends || []);
-    renderTable(data.devices || [], data.migrationAvailable);
+    renderTable(data.devices || [], data.migrationAvailable, data.backends || []);
     elements.mappingCount.textContent = `${data.mappingsCount || 0} mappings`;
   } catch (error) {
     showToast("Failed to load state");
@@ -272,6 +302,54 @@ const postEmpty = async (url) => {
   return response.json();
 };
 
+const showScanner = async (input) => {
+  if (!canScan) {
+    showToast("Scanner not available");
+    return;
+  }
+  scannerTarget = input;
+  elements.qrScanner.classList.remove("hidden");
+  try {
+    scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" },
+    });
+    elements.qrVideo.srcObject = scannerStream;
+    await elements.qrVideo.play();
+    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+    const scan = async () => {
+      if (!scannerStream) {
+        return;
+      }
+      const results = await detector.detect(elements.qrVideo);
+      if (results && results.length > 0) {
+        const value = results[0].rawValue || "";
+        if (scannerTarget) {
+          scannerTarget.value = value;
+          scannerTarget.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        closeScanner();
+        return;
+      }
+      requestAnimationFrame(scan);
+    };
+    requestAnimationFrame(scan);
+  } catch (error) {
+    console.error("Scanner error", error);
+    showToast("Unable to start scanner");
+    closeScanner();
+  }
+};
+
+const closeScanner = () => {
+  if (scannerStream) {
+    scannerStream.getTracks().forEach((track) => track.stop());
+    scannerStream = null;
+  }
+  elements.qrVideo.srcObject = null;
+  elements.qrScanner.classList.add("hidden");
+  scannerTarget = null;
+};
+
 const handleAction = async (action, row) => {
   const ieee = row.dataset.ieee;
   const nameInput = row.querySelector("input[data-field=\"name\"]");
@@ -289,6 +367,39 @@ const handleAction = async (action, row) => {
     }
     showToast("Mapping saved");
     loadState();
+    return;
+  }
+
+  if (action === "install-edit") {
+    const editor = row.querySelector(".install-editor");
+    if (editor) {
+      editor.classList.toggle("hidden");
+      const input = editor.querySelector("input[data-field=\"install-code\"]");
+      if (input) {
+        input.focus();
+      }
+    }
+    return;
+  }
+
+  if (action === "install-save") {
+    const input = row.querySelector("input[data-field=\"install-code\"]");
+    const code = input ? input.value.trim() : "";
+    const result = await postJson("api/install-codes", { ieee, code });
+    if (result.error) {
+      showToast(result.error);
+      return;
+    }
+    showToast(code ? "Install code saved" : "Install code removed");
+    loadState();
+    return;
+  }
+
+  if (action === "install-scan") {
+    const input = row.querySelector("input[data-field=\"install-code\"]");
+    if (input) {
+      showScanner(input);
+    }
     return;
   }
 
@@ -313,7 +424,7 @@ elements.deviceTable.addEventListener("click", (event) => {
       sortKey = nextKey;
       sortDir = "asc";
     }
-    renderTable(lastState?.devices || [], lastState?.migrationAvailable);
+    renderTable(lastState?.devices || [], lastState?.migrationAvailable, lastState?.backends || []);
     document.querySelectorAll(".sort").forEach((node) => {
       node.classList.toggle("active", node.dataset.sort === sortKey);
     });
@@ -344,8 +455,35 @@ elements.deviceTable.addEventListener("input", (event) => {
   }
 });
 
+elements.deviceTable.addEventListener("change", async (event) => {
+  const select = event.target.closest("select[data-action=\"install-apply\"]");
+  if (!select) {
+    return;
+  }
+  const row = select.closest(".row.data");
+  if (!row) {
+    return;
+  }
+  const ieee = row.dataset.ieee;
+  const input = row.querySelector("input[data-field=\"install-code\"]");
+  const code = input ? input.value.trim() : "";
+  if (!code) {
+    showToast("Install code is empty");
+    select.value = "";
+    return;
+  }
+  const backendId = select.value;
+  const result = await postJson("api/install-codes/apply", { ieee, backendId, code });
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  showToast("Install code applied");
+  select.value = "";
+});
+
 elements.deviceSearch.addEventListener("input", () => {
-  renderTable(lastState?.devices || [], lastState?.migrationAvailable);
+  renderTable(lastState?.devices || [], lastState?.migrationAvailable, lastState?.backends || []);
   renderLogs(lastLogs);
 });
 
@@ -363,7 +501,14 @@ elements.instanceFilters.addEventListener("change", (event) => {
   } else {
     selectedInstances.delete(label);
   }
-  renderTable(lastState?.devices || [], lastState?.migrationAvailable);
+  renderTable(lastState?.devices || [], lastState?.migrationAvailable, lastState?.backends || []);
+});
+
+elements.qrClose.addEventListener("click", () => closeScanner());
+elements.qrScanner.addEventListener("click", (event) => {
+  if (event.target === elements.qrScanner) {
+    closeScanner();
+  }
 });
 
 elements.resetMappings.addEventListener("click", async () => {

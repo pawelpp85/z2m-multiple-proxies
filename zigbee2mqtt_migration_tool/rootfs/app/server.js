@@ -6,6 +6,7 @@ const WebSocket = require("ws");
 
 const OPTIONS_PATH = "/data/options.json";
 const MAP_PATH = "/data/ieee-map.json";
+const INSTALL_CODES_PATH = "/data/install-codes.json";
 const LISTEN_PORT = 8104;
 const RECONNECT_DELAY_MS = 5000;
 const MAX_ACTIVITY_ENTRIES = 250;
@@ -70,6 +71,7 @@ let mappings = {};
 let backends = [];
 let deviceIndex = new Map();
 const deviceNameToIeee = new Map();
+let installCodes = {};
 const recentActivity = [];
 const pendingRenames = new Map();
 const pendingRemovals = new Map();
@@ -105,6 +107,38 @@ const saveMappings = () => {
     fs.writeFileSync(MAP_PATH, JSON.stringify(payload, null, 2));
   } catch (error) {
     console.error("Failed to save IEEE mapping file", error);
+  }
+};
+
+const loadInstallCodes = () => {
+  try {
+    const raw = fs.readFileSync(INSTALL_CODES_PATH, "utf8");
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.codes && typeof parsed.codes === "object") {
+      installCodes = parsed.codes;
+      return;
+    }
+    if (parsed && typeof parsed === "object") {
+      installCodes = parsed;
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.error("Failed to load install codes file", error);
+    }
+    installCodes = {};
+  }
+};
+
+const saveInstallCodes = () => {
+  const payload = {
+    version: 1,
+    updatedAt: nowIso(),
+    codes: installCodes,
+  };
+  try {
+    fs.writeFileSync(INSTALL_CODES_PATH, JSON.stringify(payload, null, 2));
+  } catch (error) {
+    console.error("Failed to save install codes file", error);
   }
 };
 
@@ -348,6 +382,7 @@ const buildDeviceList = () => {
       online: entry ? entry.online : false,
       interviewCompleted: entry ? entry.interviewCompleted : false,
       linkquality: entry ? entry.linkquality : null,
+      installCode: installCodes[ieee] || "",
     });
   }
 
@@ -599,6 +634,7 @@ class Backend {
 }
 
 loadMappings();
+loadInstallCodes();
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -681,6 +717,63 @@ app.delete("/api/mappings/:ieee", (req, res) => {
   }
   delete mappings[ieee];
   saveMappings();
+  res.json({ ok: true });
+});
+
+app.post("/api/install-codes", (req, res) => {
+  const { ieee, code } = req.body || {};
+  if (!ieee || typeof ieee !== "string") {
+    res.status(400).json({ error: "Missing IEEE address" });
+    return;
+  }
+  const trimmed = typeof code === "string" ? code.trim() : "";
+  if (!trimmed) {
+    delete installCodes[ieee];
+    saveInstallCodes();
+    res.json({ ok: true });
+    return;
+  }
+  installCodes[ieee] = trimmed;
+  saveInstallCodes();
+  res.json({ ok: true });
+});
+
+app.post("/api/install-codes/apply", (req, res) => {
+  const { ieee, backendId, code } = req.body || {};
+  if (!ieee || typeof ieee !== "string") {
+    res.status(400).json({ error: "Missing IEEE address" });
+    return;
+  }
+  if (!backendId || typeof backendId !== "string") {
+    res.status(400).json({ error: "Missing backend id" });
+    return;
+  }
+  const target = backends.find((backend) => backend.id === backendId);
+  if (!target) {
+    res.status(404).json({ error: "Backend not found" });
+    return;
+  }
+  const trimmed = typeof code === "string" ? code.trim() : "";
+  const stored = installCodes[ieee] || "";
+  const finalCode = trimmed || stored;
+  if (!finalCode) {
+    res.status(400).json({ error: "Missing install code" });
+    return;
+  }
+  installCodes[ieee] = finalCode;
+  saveInstallCodes();
+  target.send({
+    topic: "bridge/request/install_code/add",
+    payload: {
+      value: finalCode,
+      label: ieee,
+    },
+  });
+  pushActivity({
+    time: nowIso(),
+    type: "log",
+    message: `${target.label} - Install code applied for ${ieee}`,
+  });
   res.json({ ok: true });
 });
 

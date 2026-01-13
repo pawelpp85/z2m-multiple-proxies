@@ -71,6 +71,7 @@
           <div class="row header">
             <button class="sort" data-sort="mappedName">Mapped name</button>
             <button class="sort" data-sort="ieee">IEEE address</button>
+            <button class="sort" data-sort="installCode">Install code</button>
             <button class="sort" data-sort="instances">Instances</button>
             <button class="sort" data-sort="type">Type</button>
             <button class="sort" data-sort="lqi">LQI</button>
@@ -82,6 +83,12 @@
     </div>
 
     <div class="toast" id="toast"></div>
+    <div class="scanner hidden" id="qrScanner">
+      <div class="scanner-inner">
+        <video id="qrVideo" playsinline></video>
+        <button class="secondary" id="qrClose">Close</button>
+      </div>
+    </div>
 
     <script src="./app.js"></script>
   </body>

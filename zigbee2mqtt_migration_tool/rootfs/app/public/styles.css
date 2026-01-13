@@ -197,7 +197,7 @@ h1 {
 
 .row {
   display: grid;
-  grid-template-columns: 1.4fr 1.2fr 0.7fr 0.6fr 0.4fr 0.4fr 0.6fr;
+  grid-template-columns: 1.3fr 1.1fr 0.7fr 0.8fr 0.6fr 0.4fr 0.4fr 0.6fr;
   gap: 10px;
   align-items: center;
   padding: 8px 10px;
@@ -240,6 +240,41 @@ h1 {
   display: flex;
   gap: 6px;
   align-items: center;
+}
+
+.install-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.install-toggle {
+  align-self: flex-start;
+  padding: 3px 8px;
+}
+
+.install-toggle.empty {
+  opacity: 0.5;
+}
+
+.install-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.install-editor input {
+  min-width: 160px;
+}
+
+.install-editor select {
+  padding: 4px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  background: #0a0f14;
+  color: var(--ink);
+  font-size: 12px;
 }
 
 .sort {
@@ -466,6 +501,32 @@ button:disabled {
 .toast.show {
   opacity: 1;
   transform: translateY(0);
+}
+
+.scanner {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 12, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+}
+
+.scanner-inner {
+  background: #0f151d;
+  border-radius: 16px;
+  padding: 14px;
+  border: 1px solid var(--stroke);
+  display: grid;
+  gap: 10px;
+  width: min(90vw, 420px);
+}
+
+.scanner video {
+  width: 100%;
+  border-radius: 12px;
+  background: black;
 }
 
 @media (max-width: 960px) {
