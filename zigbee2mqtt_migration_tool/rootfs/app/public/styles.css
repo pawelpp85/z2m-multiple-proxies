@@ -321,6 +321,11 @@ button:disabled {
   background: rgba(255, 122, 69, 0.12);
 }
 
+.activity-item.rename {
+  border-color: rgba(93, 168, 255, 0.45);
+  background: rgba(93, 168, 255, 0.12);
+}
+
 .activity-item .message {
   font-weight: 600;
 }

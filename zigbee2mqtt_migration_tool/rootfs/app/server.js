@@ -252,6 +252,11 @@ const scheduleAutoRename = () => {
     }
 
     sendRename(backend, currentName, mapping.name);
+    pushActivity({
+      time: nowIso(),
+      type: "rename",
+      message: `${backend.label} - Auto-rename: ${currentName} -> ${mapping.name}`,
+    });
     pendingRenames.set(ieee, { name: mapping.name, lastAttempt: now });
   }
 };
