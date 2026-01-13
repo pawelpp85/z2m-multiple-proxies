@@ -368,6 +368,20 @@ const showScanner = async (input) => {
             target.dispatchEvent(new Event("input", { bubbles: true }));
             target.dispatchEvent(new Event("blur", { bubbles: true }));
           }
+          if (scannerTargetIeee) {
+            postJson("api/install-codes", { ieee: scannerTargetIeee, code: value })
+              .then((result) => {
+                if (result && result.error) {
+                  showToast(result.error);
+                  return;
+                }
+                installDrafts.delete(scannerTargetIeee);
+                showToast("Install code saved");
+              })
+              .catch(() => {
+                showToast("Failed to save install code");
+              });
+          }
           const trimmed = value.length > 20 ? `${value.slice(0, 20)}…` : value;
           showToast(`Read code: ${trimmed}`);
           closeScanner();
