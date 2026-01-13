@@ -235,7 +235,10 @@ const rebuildDeviceIndex = () => {
           ieee,
           instances: [],
           namesByBackend: {},
-          model: device.model_id || "",
+          model: device.definition?.model || device.model_id || "",
+          vendor: device.definition?.vendor || "",
+          modelId: device.model_id || "",
+          supported: device.supported === true,
           type: normalizeDeviceType(device),
           online: false,
           interviewCompleted: device.interview_completed !== false,
@@ -246,7 +249,10 @@ const rebuildDeviceIndex = () => {
       entry.instances.push(backend.label);
       entry.namesByBackend[backend.id] = device.friendly_name;
       deviceNameToIeee.set(`${backend.id}:${device.friendly_name}`, ieee);
-      entry.model = entry.model || device.model_id || "";
+      entry.model = entry.model || device.definition?.model || device.model_id || "";
+      entry.vendor = entry.vendor || device.definition?.vendor || "";
+      entry.modelId = entry.modelId || device.model_id || "";
+      entry.supported = entry.supported || device.supported === true;
       entry.type = entry.type !== "Unknown" ? entry.type : normalizeDeviceType(device);
       entry.online = entry.online || isDeviceOnline(backend, device);
       entry.interviewCompleted = entry.interviewCompleted && device.interview_completed !== false;
@@ -398,6 +404,9 @@ const buildDeviceList = () => {
       mappedName: mapping.name || "",
       instances: entry ? entry.instances : [],
       model: entry ? entry.model : "",
+      vendor: entry ? entry.vendor : "",
+      modelId: entry ? entry.modelId : "",
+      supported: entry ? entry.supported : false,
       type: entry ? entry.type : "Unknown",
       online: entry ? entry.online : false,
       interviewCompleted: entry ? entry.interviewCompleted : false,

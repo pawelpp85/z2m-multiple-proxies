@@ -107,7 +107,7 @@ const sortDevices = (devices) => {
         case "type":
           return item.type || "";
         case "model":
-          return item.model || "";
+          return item.model || item.modelId || "";
         case "lqi":
           return typeof item.linkquality === "number" ? item.linkquality : -1;
         case "online":
@@ -167,6 +167,7 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
   const backendOptions = backends
     .map((backend) => `<option value="${backend.id}">${backend.label}</option>`)
     .join("");
+  const normalizeModel = (value) => value.replace(/[/| |:]/g, "_");
 
   sorted.forEach((device) => {
     const hasInstances = device.instances && device.instances.length > 0;
@@ -231,11 +232,15 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
           }
         </div>
         <div>${
-          device.model
+          device.supported && device.model && device.vendor
             ? `<a class="model-link" href="https://www.zigbee2mqtt.io/devices/${encodeURIComponent(
-                device.model,
-              )}.html" target="_blank" rel="noreferrer">${device.model}</a>`
-            : "-"
+                normalizeModel(device.model),
+              )}.html#${encodeURIComponent(
+                normalizeModel(`${device.vendor.toLowerCase()}-${device.model.toLowerCase()}`),
+              )}" target="_blank" rel="noreferrer">${device.model}</a>`
+            : device.modelId
+              ? `<a class="model-link" href="https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html" target="_blank" rel="noreferrer">${device.modelId}</a>`
+              : "-"
         }</div>
         <div>${lqi}</div>
         <div><span class="badge ${effectiveClass}">${effectiveLabel}</span></div>
