@@ -34,7 +34,7 @@ const showToast = (message) => {
 
 const formatRemaining = (seconds) => {
   if (seconds === null || seconds === undefined) {
-    return "unknown";
+    return "";
   }
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -49,7 +49,10 @@ const renderPairing = (pairing) => {
     return;
   }
   const message = pairing
-    .map((entry) => `${entry.label} (${formatRemaining(entry.remaining)})`)
+    .map((entry) => {
+      const remaining = formatRemaining(entry.remaining);
+      return remaining ? `${entry.label} (${remaining})` : entry.label;
+    })
     .join(", ");
   if (pairing.length === 1) {
     elements.pairingStatus.classList.add("single");

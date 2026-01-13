@@ -1,6 +1,6 @@
 {
   "name": "zigbee2mqtt-migration-tool",
-  "version": "0.0.1b11",
+  "version": "0.0.1b12",
   "private": true,
   "main": "server.js",
   "license": "Apache-2.0",
