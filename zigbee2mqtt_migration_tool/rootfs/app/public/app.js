@@ -256,7 +256,9 @@ const renderLogs = (logs) => {
         stamp.getFullYear() === today.getFullYear() &&
         stamp.getMonth() === today.getMonth() &&
         stamp.getDate() === today.getDate();
-      const time = sameDay ? stamp.toLocaleTimeString() : stamp.toLocaleString();
+      const time = sameDay
+        ? stamp.toLocaleTimeString(undefined)
+        : stamp.toLocaleString(undefined);
       const typeClass = entry.type ? ` ${entry.type}` : "";
       return `
         <div class="activity-item${typeClass}">
