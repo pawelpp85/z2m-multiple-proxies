@@ -22,6 +22,7 @@ let toastTimeout = null;
 let sortKey = "mappedName";
 let sortDir = "asc";
 let selectedInstances = new Set();
+let lastLogs = [];
 
 const showToast = (message) => {
   elements.toast.textContent = message;
@@ -45,7 +46,7 @@ const renderPairing = (pairing) => {
   const body = elements.pairingStatus.querySelector(".status-body");
   elements.pairingStatus.classList.remove("single", "multi");
   if (!pairing || pairing.length === 0) {
-    body.textContent = "Pairing is OFF on all instances";
+    body.textContent = "Pairing is OFF";
     return;
   }
   const message = pairing
@@ -56,10 +57,10 @@ const renderPairing = (pairing) => {
     .join(", ");
   if (pairing.length === 1) {
     elements.pairingStatus.classList.add("single");
-    body.textContent = `Pairing enabled on: ${message}`;
+    body.innerHTML = `Pairing is on<br>${message}`;
   } else {
     elements.pairingStatus.classList.add("multi");
-    body.innerHTML = `<span class="pairing-alert"><span class="alert-dot"></span>Pairing enabled on: ${message}</span>`;
+    body.innerHTML = `Pairing is on<br>${message}`;
   }
 };
 
@@ -164,12 +165,33 @@ const renderTable = (devices, migrationAvailable) => {
   });
 };
 
+const filterLogs = (logs) => {
+  const query = elements.deviceSearch.value.trim().toLowerCase();
+  if (!query || !lastState || !lastState.devices) {
+    return logs;
+  }
+  const matched = lastState.devices.filter(
+    (device) =>
+      device.mappedName.toLowerCase().includes(query) || device.ieee.toLowerCase().includes(query),
+  );
+  if (matched.length === 0) {
+    return [];
+  }
+  const names = matched.map((device) => device.mappedName.toLowerCase()).filter(Boolean);
+  const ieee = matched.map((device) => device.ieee.toLowerCase()).filter(Boolean);
+  return logs.filter((entry) => {
+    const message = (entry.message || "").toLowerCase();
+    return names.some((name) => message.includes(name)) || ieee.some((id) => message.includes(id));
+  });
+};
+
 const renderLogs = (logs) => {
-  if (!logs || logs.length === 0) {
+  const filtered = filterLogs(logs || []);
+  if (!filtered || filtered.length === 0) {
     elements.activityLog.innerHTML = "<p class=\"subtitle\">No activity yet.</p>";
     return;
   }
-  elements.activityLog.innerHTML = logs
+  elements.activityLog.innerHTML = filtered
     .map((entry) => {
       const time = new Date(entry.time).toLocaleString();
       const typeClass = entry.type ? ` ${entry.type}` : "";
@@ -224,7 +246,8 @@ const loadLogs = async () => {
   try {
     const response = await fetch(logsUrl);
     const data = await response.json();
-    renderLogs(data.logs || []);
+    lastLogs = data.logs || [];
+    renderLogs(lastLogs);
   } catch (error) {
     showToast("Failed to load logs");
   }
@@ -320,6 +343,7 @@ elements.deviceTable.addEventListener("input", (event) => {
 
 elements.deviceSearch.addEventListener("input", () => {
   renderTable(lastState?.devices || [], lastState?.migrationAvailable);
+  renderLogs(lastLogs);
 });
 
 elements.instanceFilters.addEventListener("change", (event) => {

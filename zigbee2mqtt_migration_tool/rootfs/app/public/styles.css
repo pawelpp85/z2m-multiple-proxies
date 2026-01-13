@@ -136,6 +136,25 @@ h1 {
   margin-bottom: 16px;
 }
 
+.panel-header.mapping-header {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(220px, 1fr) minmax(150px, 0.6fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.panel-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .panel-header h2 {
   margin: 0 0 6px;
   font-size: 20px;
@@ -146,23 +165,17 @@ h1 {
   color: var(--ink-soft);
 }
 
-.counts {
-  display: flex;
-  align-items: center;
-  font-weight: 600;
-  color: var(--ink-soft);
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
 .counts-right {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  align-items: flex-start;
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
-.counts input[type="search"] {
-  width: min(260px, 100%);
+.filter-stack input[type="search"] {
+  width: min(240px, 100%);
   padding: 7px 10px;
   border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.35);
@@ -172,7 +185,7 @@ h1 {
   color: var(--ink);
 }
 
-.counts input[type="search"]::placeholder {
+.filter-stack input[type="search"]::placeholder {
   color: rgba(245, 247, 251, 0.6);
 }
 
@@ -295,7 +308,7 @@ button.secondary.danger {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin: 10px 0 14px;
+  margin: 0;
 }
 
 .instance-filters label {
@@ -366,7 +379,13 @@ button:disabled {
 }
 
 .status-card.multi {
-  border-color: rgba(255, 86, 86, 0.55);
+  background: linear-gradient(135deg, rgba(132, 20, 26, 0.6), rgba(200, 36, 46, 0.4));
+  border-color: rgba(255, 86, 86, 0.7);
+  animation: pulse-alert 1.2s ease-in-out infinite;
+}
+
+.status-card.multi .status-body {
+  color: #ffd6d6;
 }
 
 .pairing-alert {
@@ -393,6 +412,18 @@ button:disabled {
   }
   100% {
     opacity: 0.4;
+  }
+}
+
+@keyframes pulse-alert {
+  0% {
+    box-shadow: 0 0 0 rgba(255, 86, 86, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 86, 86, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(255, 86, 86, 0.2);
   }
 }
 
@@ -428,6 +459,9 @@ button:disabled {
 }
 
 @media (max-width: 960px) {
+  .panel-header.mapping-header {
+    grid-template-columns: 1fr;
+  }
   .row {
     grid-template-columns: 1fr;
   }
