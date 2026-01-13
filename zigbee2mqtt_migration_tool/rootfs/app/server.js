@@ -463,6 +463,14 @@ loadMappings();
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use((req, res, next) => {
+  if (req.url.startsWith("//")) {
+    const original = req.url;
+    req.url = req.url.replace(/^\/+/, "/");
+    console.log(`[HTTP] normalized ${original} -> ${req.url}`);
+  }
+  next();
+});
+app.use((req, res, next) => {
   console.log(`[HTTP] ${req.method} ${req.url}`);
   next();
 });
