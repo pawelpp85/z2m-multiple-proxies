@@ -8,7 +8,9 @@ const OPTIONS_PATH = "/data/options.json";
 const MAP_PATH = "/data/ieee-map.json";
 const LISTEN_PORT = 8104;
 const RECONNECT_DELAY_MS = 5000;
-const MAX_LOG_ENTRIES = 250;
+const MAX_ACTIVITY_ENTRIES = 250;
+const ACTIVITY_TTL_MS = 3 * 60 * 1000;
+const LAST_SEEN_ONLINE_MS = 10 * 60 * 1000;
 const RENAME_COOLDOWN_MS = 60000;
 const REMOVE_TIMEOUT_MS = 15000;
 
@@ -67,7 +69,7 @@ const buildWsUrl = (url, token) => {
 let mappings = {};
 let backends = [];
 let deviceIndex = new Map();
-const recentLogs = [];
+const recentActivity = [];
 const pendingRenames = new Map();
 const pendingRemovals = new Map();
 
@@ -124,6 +126,9 @@ const isDeviceOnline = (backend, device) => {
     if (typeof state === "string") {
       return state.toLowerCase() === "online";
     }
+    if (typeof device.availability === "string") {
+      return device.availability.toLowerCase() === "online";
+    }
   }
   const key = device && device.friendly_name ? device.friendly_name : null;
   if (!key) {
@@ -132,6 +137,15 @@ const isDeviceOnline = (backend, device) => {
   const availability = backend.availability.get(key);
   if (typeof availability === "string") {
     return availability.toLowerCase() === "online";
+  }
+  if (availability && typeof availability === "object" && typeof availability.state === "string") {
+    return availability.state.toLowerCase() === "online";
+  }
+  if (device && device.last_seen) {
+    const seen = new Date(device.last_seen).getTime();
+    if (!Number.isNaN(seen)) {
+      return Date.now() - seen < LAST_SEEN_ONLINE_MS;
+    }
   }
   return false;
 };
@@ -319,17 +333,57 @@ const buildDeviceList = () => {
   return combined;
 };
 
-const pushLog = (backend, payload) => {
-  const message = payload && payload.message ? payload.message : "";
-  const entry = {
-    time: nowIso(),
-    level: payload && payload.level ? payload.level : "info",
-    message: `[${backend.label}] ${message}`,
-  };
-  recentLogs.unshift(entry);
-  if (recentLogs.length > MAX_LOG_ENTRIES) {
-    recentLogs.pop();
+const pruneActivity = () => {
+  const cutoff = Date.now() - ACTIVITY_TTL_MS;
+  while (recentActivity.length > 0) {
+    const last = recentActivity[recentActivity.length - 1];
+    if (new Date(last.time).getTime() < cutoff) {
+      recentActivity.pop();
+    } else {
+      break;
+    }
   }
+};
+
+const pushActivity = (entry) => {
+  recentActivity.unshift(entry);
+  if (recentActivity.length > MAX_ACTIVITY_ENTRIES) {
+    recentActivity.pop();
+  }
+  pruneActivity();
+};
+
+const formatChangeMessage = (backend, name, changes) => {
+  if (!changes || changes.length === 0) {
+    return null;
+  }
+  const detail = changes.join(", ");
+  return `${backend.label} - ${name} -- ${detail}`;
+};
+
+const buildDiff = (prev, next) => {
+  if (!prev || typeof prev !== "object" || !next || typeof next !== "object") {
+    return [];
+  }
+  const changes = [];
+  const keys = Object.keys(next);
+  for (const key of keys) {
+    if (key === "last_seen") {
+      continue;
+    }
+    const nextValue = next[key];
+    const prevValue = prev[key];
+    const nextType = typeof nextValue;
+    if (!["string", "number", "boolean"].includes(nextType)) {
+      continue;
+    }
+    if (prevValue === nextValue) {
+      continue;
+    }
+    const prevText = typeof prevValue === "undefined" ? "-" : String(prevValue);
+    changes.push(`${key}: ${prevText} -> ${String(nextValue)}`);
+  }
+  return changes;
 };
 
 const sendRename = (backend, fromName, toName) => {
@@ -365,6 +419,7 @@ class Backend {
     this.availability = new Map();
     this.bridgeInfo = null;
     this.permitJoinEndsAt = null;
+    this.deviceStates = new Map();
   }
 
   connect() {
@@ -435,7 +490,18 @@ class Backend {
           }
           return;
         case "bridge/logging":
-          pushLog(this, data.payload || {});
+          if (data.payload && typeof data.payload.message === "string") {
+            const message = data.payload.message;
+            const joined = /(joined|interviewing|interview completed)/i.test(message);
+            const left = /(left|leave|removed|deleted)/i.test(message);
+            if (joined || left) {
+              pushActivity({
+                time: nowIso(),
+                type: joined ? "join" : "leave",
+                message: `${this.label} - ${message}`,
+              });
+            }
+          }
           return;
         case "bridge/response/device/remove":
           return;
@@ -454,6 +520,25 @@ class Backend {
         default:
           return;
       }
+    }
+
+    const topicParts = data.topic.split("/");
+    const name = topicParts[0];
+    const payload = data.payload;
+    if (name && payload && typeof payload === "object" && !Array.isArray(payload)) {
+      const previous = this.deviceStates.get(name);
+      const changes = buildDiff(previous, payload);
+      if (changes.length > 0) {
+        const message = formatChangeMessage(this, name, changes);
+        if (message) {
+          pushActivity({
+            time: nowIso(),
+            type: "change",
+            message,
+          });
+        }
+      }
+      this.deviceStates.set(name, payload);
     }
   }
 }
@@ -503,10 +588,11 @@ app.get("/api/state", (req, res) => {
 
 app.get("/api/logs", (req, res) => {
   try {
+    pruneActivity();
     res.json({
-      logs: recentLogs,
+      logs: recentActivity,
     });
-    console.log(`[API] logs ok (entries=${recentLogs.length})`);
+    console.log(`[API] logs ok (entries=${recentActivity.length})`);
   } catch (error) {
     console.error("[API] logs failed", error);
     res.status(500).json({ error: "Failed to load logs" });

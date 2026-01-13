@@ -46,6 +46,16 @@
       <section class="panel">
         <div class="panel-header">
           <div>
+            <h2>Recent activity</h2>
+            <p>Combined logs from all configured instances.</p>
+          </div>
+        </div>
+        <div class="activity" id="activityLog"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
             <h2>Device mappings</h2>
             <p>Mapping is stored on disk and reused for future joins.</p>
           </div>
@@ -53,27 +63,20 @@
             <span id="mappingCount">0 mappings</span>
           </div>
         </div>
+        <div class="filters">
+          <input type="search" id="deviceSearch" placeholder="Search by name" />
+        </div>
         <div class="table" id="deviceTable">
           <div class="row header">
-            <div>IEEE address</div>
-            <div>Mapped name</div>
-            <div>Instances</div>
-            <div>Type</div>
-            <div>LQI</div>
-            <div>Online</div>
+            <button class="sort" data-sort="mappedName">Mapped name</button>
+            <button class="sort" data-sort="ieee">IEEE address</button>
+            <button class="sort" data-sort="instances">Instances</button>
+            <button class="sort" data-sort="type">Type</button>
+            <button class="sort" data-sort="lqi">LQI</button>
+            <button class="sort" data-sort="online">Online</button>
             <div>Actions</div>
           </div>
         </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-header">
-          <div>
-            <h2>Recent activity</h2>
-            <p>Combined logs from all configured instances.</p>
-          </div>
-        </div>
-        <div class="activity" id="activityLog"></div>
       </section>
     </div>
 

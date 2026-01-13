@@ -12,10 +12,13 @@ const elements = {
   activityLog: document.getElementById("activityLog"),
   mappingCount: document.getElementById("mappingCount"),
   toast: document.getElementById("toast"),
+  deviceSearch: document.getElementById("deviceSearch"),
 };
 
 let lastState = null;
 let toastTimeout = null;
+let sortKey = "mappedName";
+let sortDir = "asc";
 
 const showToast = (message) => {
   elements.toast.textContent = message;
@@ -55,20 +58,63 @@ const renderOverview = (overview) => {
   elements.overviewLqi.textContent = overview.lowLqi ?? "-";
 };
 
+const sortDevices = (devices) => {
+  const sorted = [...devices];
+  sorted.sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const getValue = (item) => {
+      switch (sortKey) {
+        case "mappedName":
+          return item.mappedName || "";
+        case "ieee":
+          return item.ieee || "";
+        case "instances":
+          return item.instances ? item.instances.join(", ") : "";
+        case "type":
+          return item.type || "";
+        case "lqi":
+          return typeof item.linkquality === "number" ? item.linkquality : -1;
+        case "online":
+          return item.online ? 1 : 0;
+        default:
+          return "";
+      }
+    };
+    const left = getValue(a);
+    const right = getValue(b);
+    if (typeof left === "number" && typeof right === "number") {
+      return (left - right) * dir;
+    }
+    return String(left).localeCompare(String(right)) * dir;
+  });
+  return sorted;
+};
+
+const filterDevices = (devices) => {
+  const query = elements.deviceSearch.value.trim().toLowerCase();
+  if (!query) {
+    return devices;
+  }
+  return devices.filter((device) => device.mappedName.toLowerCase().includes(query));
+};
+
 const renderTable = (devices, migrationAvailable) => {
   const rows = [
     `<div class="row header">
-      <div>IEEE address</div>
-      <div>Mapped name</div>
-      <div>Instances</div>
-      <div>Type</div>
-      <div>LQI</div>
-      <div>Online</div>
+      <button class="sort" data-sort="mappedName">Mapped name</button>
+      <button class="sort" data-sort="ieee">IEEE address</button>
+      <button class="sort" data-sort="instances">Instances</button>
+      <button class="sort" data-sort="type">Type</button>
+      <button class="sort" data-sort="lqi">LQI</button>
+      <button class="sort" data-sort="online">Online</button>
       <div>Actions</div>
     </div>`,
   ];
 
-  devices.forEach((device) => {
+  const filtered = filterDevices(devices);
+  const sorted = sortDevices(filtered);
+
+  sorted.forEach((device) => {
     const instances = device.instances && device.instances.length > 0 ? device.instances.join(", ") : "-";
     const onlineClass = device.online ? "" : "offline";
     const onlineLabel = device.online ? "Online" : "Offline";
@@ -77,18 +123,16 @@ const renderTable = (devices, migrationAvailable) => {
 
     rows.push(`
       <div class="row data" data-ieee="${device.ieee}">
-        <div class="mono">${device.ieee}</div>
-        <div>
-          <input type="text" value="${device.mappedName}" data-field="name" />
+        <div class="name-cell">
+          <input type="text" value="${device.mappedName}" data-field="name" data-original="${device.mappedName}" />
+          <button class="ghost save-button hidden" data-action="save">Save</button>
         </div>
+        <div class="mono">${device.ieee}</div>
         <div>${instances}</div>
         <div>${device.type || "Unknown"}</div>
         <div>${lqi}</div>
         <div><span class="badge ${onlineClass}">${onlineLabel}</span></div>
         <div class="actions">
-          <button data-action="save">Save</button>
-          <button class="secondary" data-action="delete">Delete mapping</button>
-          <button class="ghost" data-action="remove" ${disabled ? "disabled" : ""}>Remove</button>
           <button data-action="migrate" ${migrationAvailable && !disabled ? "" : "disabled"}>Migrate</button>
         </div>
       </div>
@@ -96,6 +140,9 @@ const renderTable = (devices, migrationAvailable) => {
   });
 
   elements.deviceTable.innerHTML = rows.join("");
+  document.querySelectorAll(".sort").forEach((node) => {
+    node.classList.toggle("active", node.dataset.sort === sortKey);
+  });
 };
 
 const renderLogs = (logs) => {
@@ -104,14 +151,16 @@ const renderLogs = (logs) => {
     return;
   }
   elements.activityLog.innerHTML = logs
-    .map(
-      (entry) => `
-        <div class="activity-item">
-          <div class="time">${entry.time}</div>
-          <div>${entry.message}</div>
+    .map((entry) => {
+      const time = new Date(entry.time).toLocaleString();
+      const typeClass = entry.type ? ` ${entry.type}` : "";
+      return `
+        <div class="activity-item${typeClass}">
+          <div class="message">${entry.message}</div>
+          <div class="time">${time}</div>
         </div>
-      `,
-    )
+      `;
+    })
     .join("");
 };
 
@@ -150,11 +199,6 @@ const postJson = async (url, payload) => {
   return response.json();
 };
 
-const deleteJson = async (url) => {
-  const response = await fetch(url, { method: "DELETE" });
-  return response.json();
-};
-
 const handleAction = async (action, row) => {
   const ieee = row.dataset.ieee;
   const nameInput = row.querySelector("input[data-field=\"name\"]");
@@ -175,27 +219,6 @@ const handleAction = async (action, row) => {
     return;
   }
 
-  if (action === "delete") {
-    if (!confirm("Delete mapping entry?")) {
-      return;
-    }
-    const result = await deleteJson(`api/mappings/${ieee}`);
-    if (result.error) {
-      showToast(result.error);
-      return;
-    }
-    showToast("Mapping deleted");
-    loadState();
-    return;
-  }
-
-  if (action === "remove") {
-    const result = await postJson("api/remove", { ieee });
-    showToast(`Remove: ${result.status}`);
-    loadState();
-    return;
-  }
-
   if (action === "migrate") {
     const result = await postJson("api/migrate", { ieee });
     showToast(`Migrate: ${result.status}`);
@@ -206,6 +229,21 @@ const handleAction = async (action, row) => {
 elements.deviceTable.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) {
+    const sortButton = event.target.closest("button.sort");
+    if (!sortButton) {
+      return;
+    }
+    const nextKey = sortButton.dataset.sort;
+    if (nextKey === sortKey) {
+      sortDir = sortDir === "asc" ? "desc" : "asc";
+    } else {
+      sortKey = nextKey;
+      sortDir = "asc";
+    }
+    renderTable(lastState?.devices || [], lastState?.migrationAvailable);
+    document.querySelectorAll(".sort").forEach((node) => {
+      node.classList.toggle("active", node.dataset.sort === sortKey);
+    });
     return;
   }
   const row = button.closest(".row.data");
@@ -214,6 +252,27 @@ elements.deviceTable.addEventListener("click", (event) => {
   }
   const action = button.dataset.action;
   handleAction(action, row);
+});
+
+elements.deviceTable.addEventListener("input", (event) => {
+  const input = event.target.closest("input[data-field=\"name\"]");
+  if (!input) {
+    return;
+  }
+  const row = input.closest(".row.data");
+  if (!row) {
+    return;
+  }
+  const original = input.dataset.original || "";
+  const changed = input.value.trim() !== original;
+  const saveButton = row.querySelector(".save-button");
+  if (saveButton) {
+    saveButton.classList.toggle("hidden", !changed);
+  }
+});
+
+elements.deviceSearch.addEventListener("input", () => {
+  renderTable(lastState?.devices || [], lastState?.migrationAvailable);
 });
 
 loadState();
