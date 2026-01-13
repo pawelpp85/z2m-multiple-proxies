@@ -462,27 +462,47 @@ loadMappings();
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
+app.use((req, res, next) => {
+  console.log(`[HTTP] ${req.method} ${req.url}`);
+  next();
+});
 
 app.get("/api/state", (req, res) => {
-  res.json({
-    generatedAt: nowIso(),
-    overview: summarizeOverview(),
-    pairing: buildPairingStatus(),
-    migrationAvailable: buildPairingStatus().length > 0,
-    devices: buildDeviceList(),
-    mappingsCount: Object.keys(mappings).length,
-    backends: backends.map((backend) => ({
-      id: backend.id,
-      label: backend.label,
-      connected: backend.connected,
-    })),
-  });
+  try {
+    const pairing = buildPairingStatus();
+    const devices = buildDeviceList();
+    res.json({
+      generatedAt: nowIso(),
+      overview: summarizeOverview(),
+      pairing,
+      migrationAvailable: pairing.length > 0,
+      devices,
+      mappingsCount: Object.keys(mappings).length,
+      backends: backends.map((backend) => ({
+        id: backend.id,
+        label: backend.label,
+        connected: backend.connected,
+      })),
+    });
+    console.log(
+      `[API] state ok (devices=${devices.length} mappings=${Object.keys(mappings).length} pairing=${pairing.length})`,
+    );
+  } catch (error) {
+    console.error("[API] state failed", error);
+    res.status(500).json({ error: "Failed to build state" });
+  }
 });
 
 app.get("/api/logs", (req, res) => {
-  res.json({
-    logs: recentLogs,
-  });
+  try {
+    res.json({
+      logs: recentLogs,
+    });
+    console.log(`[API] logs ok (entries=${recentLogs.length})`);
+  } catch (error) {
+    console.error("[API] logs failed", error);
+    res.status(500).json({ error: "Failed to load logs" });
+  }
 });
 
 app.post("/api/mappings", (req, res) => {
