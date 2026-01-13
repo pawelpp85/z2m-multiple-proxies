@@ -332,6 +332,11 @@ const showScanner = async (input) => {
       if (results && results.length > 0) {
         const value = results[0].rawValue || "";
         if (value) {
+          if (scannerTargetIeee) {
+            installDrafts.set(scannerTargetIeee, value);
+            openInstallEditors.add(scannerTargetIeee);
+          }
+          renderTable(lastState?.devices || [], lastState?.migrationAvailable, lastState?.backends || []);
           let target = scannerTarget;
           if (!target && scannerTargetIeee) {
             const activeRow = document.querySelector(`.row.data[data-ieee="${scannerTargetIeee}"]`);
