@@ -314,8 +314,8 @@ h1 {
   gap: 6px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(64, 209, 156, 0.16);
-  color: #93f0cc;
+  background: transparent;
+  color: #4bd18f;
   font-size: 12px;
   font-weight: 600;
 }
