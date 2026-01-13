@@ -513,6 +513,10 @@ button:disabled {
   z-index: 30;
 }
 
+.scanner.hidden {
+  display: none;
+}
+
 .scanner-inner {
   background: #0f151d;
   border-radius: 16px;
