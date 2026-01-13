@@ -108,7 +108,10 @@ const filterDevices = (devices) => {
   const query = elements.deviceSearch.value.trim().toLowerCase();
   let filtered = devices;
   if (query) {
-    filtered = filtered.filter((device) => device.mappedName.toLowerCase().includes(query));
+    filtered = filtered.filter(
+      (device) =>
+        device.mappedName.toLowerCase().includes(query) || device.ieee.toLowerCase().includes(query),
+    );
   }
   if (selectedInstances.size > 0) {
     filtered = filtered.filter((device) =>

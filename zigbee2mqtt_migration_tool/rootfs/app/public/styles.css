@@ -330,7 +330,7 @@ button.secondary.danger {
 }
 
 .instance-filters input[type="checkbox"] {
-  accent-color: var(--accent-2);
+  accent-color: #4aa3ff;
 }
 
 button.ghost {
@@ -363,6 +363,9 @@ button:disabled {
   background: #0f151d;
   border: 1px solid var(--stroke);
   font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .activity-item.join {
@@ -441,7 +444,8 @@ button:disabled {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--ink-soft);
-  margin-top: 4px;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .toast {
