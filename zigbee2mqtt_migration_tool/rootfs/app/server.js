@@ -817,6 +817,37 @@ app.post("/api/reset", (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/mappings/apply", (req, res) => {
+  let applied = 0;
+  let skipped = 0;
+  for (const [ieee, mapping] of Object.entries(mappings)) {
+    const desired = mapping && mapping.name ? mapping.name.trim() : "";
+    if (!desired) {
+      skipped += 1;
+      continue;
+    }
+    const entry = deviceIndex.get(ieee);
+    if (!entry) {
+      skipped += 1;
+      continue;
+    }
+    for (const backend of backends) {
+      const current = entry.namesByBackend[backend.id];
+      if (!current || current === desired) {
+        continue;
+      }
+      sendRename(backend, current, desired);
+      pushActivity({
+        time: nowIso(),
+        type: "rename",
+        message: `${backend.label} - Apply mapping: ${current} -> ${desired}`,
+      });
+      applied += 1;
+    }
+  }
+  res.json({ ok: true, applied, skipped });
+});
+
 const requestRemoval = (ieee) => {
   return new Promise((resolve) => {
     if (pendingRemovals.has(ieee)) {

@@ -14,6 +14,7 @@ const elements = {
   toast: document.getElementById("toast"),
   deviceSearch: document.getElementById("deviceSearch"),
   resetMappings: document.getElementById("resetMappings"),
+  applyMappings: document.getElementById("applyMappings"),
   instanceFilters: document.getElementById("instanceFilters"),
   qrScanner: document.getElementById("qrScanner"),
   qrVideo: document.getElementById("qrVideo"),
@@ -618,6 +619,15 @@ elements.resetMappings.addEventListener("click", async () => {
   }
   showToast("Mappings reset");
   loadState();
+});
+
+elements.applyMappings.addEventListener("click", async () => {
+  const result = await postEmpty("api/mappings/apply");
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  showToast(`Applied mappings: ${result.applied || 0}`);
 });
 
 loadState();
