@@ -282,6 +282,11 @@ h1 {
   gap: 8px;
 }
 
+.actions button[data-action="migrate"] {
+  background: rgba(124, 18, 26, 0.85);
+  color: rgba(255, 230, 230, 0.95);
+}
+
 button {
   border: none;
   border-radius: 999px;
