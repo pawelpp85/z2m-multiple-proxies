@@ -31,6 +31,8 @@ let scannerTarget = null;
 const isMobile = window.matchMedia("(pointer: coarse)").matches;
 const canScan =
   isMobile && "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+const openInstallEditors = new Set();
+const installDrafts = new Map();
 
 const showToast = (message) => {
   elements.toast.textContent = message;
@@ -161,6 +163,8 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
     const hasInstall = !!device.installCode;
     const installLabel = hasInstall ? "Edit" : "+";
     const installClass = hasInstall ? "" : "empty";
+    const isOpen = openInstallEditors.has(device.ieee);
+    const draft = installDrafts.has(device.ieee) ? installDrafts.get(device.ieee) : device.installCode || "";
 
     rows.push(`
       <div class="row data" data-ieee="${device.ieee}">
@@ -171,8 +175,8 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
         <div class="mono">${device.ieee}</div>
         <div class="install-cell">
           <button class="ghost install-toggle ${installClass}" data-action="install-edit">${installLabel}</button>
-          <div class="install-editor hidden">
-            <input type="text" value="${device.installCode || ""}" data-field="install-code" />
+          <div class="install-editor ${isOpen ? "" : "hidden"}">
+            <input type="text" value="${draft}" data-field="install-code" />
             <button class="ghost" data-action="install-save">Save</button>
             ${canScan ? `<button class="ghost" data-action="install-scan">Scan</button>` : ""}
             <select data-action="install-apply">
@@ -374,6 +378,11 @@ const handleAction = async (action, row) => {
     const editor = row.querySelector(".install-editor");
     if (editor) {
       editor.classList.toggle("hidden");
+      if (editor.classList.contains("hidden")) {
+        openInstallEditors.delete(ieee);
+      } else {
+        openInstallEditors.add(ieee);
+      }
       const input = editor.querySelector("input[data-field=\"install-code\"]");
       if (input) {
         input.focus();
@@ -390,6 +399,7 @@ const handleAction = async (action, row) => {
       showToast(result.error);
       return;
     }
+    installDrafts.delete(ieee);
     showToast(code ? "Install code saved" : "Install code removed");
     loadState();
     return;
@@ -441,6 +451,14 @@ elements.deviceTable.addEventListener("click", (event) => {
 elements.deviceTable.addEventListener("input", (event) => {
   const input = event.target.closest("input[data-field=\"name\"]");
   if (!input) {
+    const installInput = event.target.closest("input[data-field=\"install-code\"]");
+    if (installInput) {
+      const row = installInput.closest(".row.data");
+      if (row) {
+        const ieee = row.dataset.ieee;
+        installDrafts.set(ieee, installInput.value);
+      }
+    }
     return;
   }
   const row = input.closest(".row.data");
