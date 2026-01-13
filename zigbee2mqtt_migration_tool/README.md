@@ -3,19 +3,15 @@
 Migration helper for multiple Zigbee2MQTT instances. Stores IEEE -> name mappings, keeps device names across networks, and assists during migration/pairing.
 
 ## How to use
-This tool helps migrate devices between Zigbee2MQTT instances, but it is not fully automatic.
+This tool helps migrate devices between Zigbee2MQTT instances (not fully automatic).
 
-Configure the add-on with URLs for all your instances. The tool discovers devices, IEEE addresses, and names, and stores the mapping for future moves. Use the mapped name here instead of renaming directly in Zigbee2MQTT.
+1. Enable pairing in exactly one instance (inside Zigbee2MQTT).
+2. Click “Migrate” to remove the device from its current instance.
+3. Put the device into pairing mode and wait for the interview to finish.
+4. The previous name is applied automatically after the join completes.
 
-Before migrating, make sure an install code is stored for the device. Install codes are saved per IEEE address and can be scanned with the camera and added to the target instance.
-
-1. Enable pairing in exactly one Zigbee2MQTT instance (do this in that instance, not here).
-2. Click “Migrate” for the device to remove it from its current instance.
-3. Put the device into pairing mode and follow the manufacturer or Zigbee2MQTT instructions.
-4. After the device joins the new instance and finishes the interview, the previous name is applied automatically.
-
-Reset mappings reloads current names from all instances and removes mappings for devices not present in any instance.
-Apply mappings checks for mismatched names and lets you confirm proposed changes.
+Reset mappings reloads names from all instances.
+Apply mappings prompts for mismatches and applies changes on approval.
 
 ## Features
 - Persistent IEEE -> name mapping stored in `/data/ieee-map.json`

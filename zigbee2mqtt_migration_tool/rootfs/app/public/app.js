@@ -105,6 +105,8 @@ const sortDevices = (devices) => {
           return item.instances ? item.instances.join(", ") : "";
         case "type":
           return item.type || "";
+        case "model":
+          return item.model || "";
         case "lqi":
           return typeof item.linkquality === "number" ? item.linkquality : -1;
         case "online":
@@ -151,6 +153,7 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
       <button class="sort" data-sort="installCode">Install code</button>
       <button class="sort" data-sort="instances">Instances</button>
       <button class="sort" data-sort="type">Type</button>
+      <button class="sort" data-sort="model">Model</button>
       <button class="sort" data-sort="lqi">LQI</button>
       <button class="sort" data-sort="online">Online</button>
       <div>Actions</div>
@@ -213,7 +216,20 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
           </div>
         </div>
         <div class="${hasInstances ? "" : "unassigned"}">${instances}</div>
-        <div>${device.type || "Unknown"}</div>
+        <div>
+          ${
+            device.type === "Router"
+              ? '<span class="type-icon router" title="Router"></span>'
+              : '<span class="type-icon end" title="End device"></span>'
+          }
+        </div>
+        <div>${
+          device.model
+            ? `<a class="model-link" href="https://www.zigbee2mqtt.io/devices/${encodeURIComponent(
+                device.model,
+              )}.html" target="_blank" rel="noreferrer">${device.model}</a>`
+            : "-"
+        }</div>
         <div>${lqi}</div>
         <div><span class="badge ${effectiveClass}">${effectiveLabel}</span></div>
         <div class="actions">
@@ -650,7 +666,7 @@ const showNextMapping = () => {
   }
   mappingCurrent = mappingQueue.shift();
   const { current, desired, backendLabel } = mappingCurrent;
-  elements.mappingModalText.textContent = `Wykryto urzadzenie z blednie przypisanym mapowaniem (${backendLabel}). Stara nazwa: ${current}, proponowana nazwa: ${desired}.`;
+  elements.mappingModalText.textContent = `Detected device with wrong mapping (${backendLabel}). Old name: ${current}, proposed name: ${desired}.`;
   elements.mappingModal.classList.remove("hidden");
 };
 

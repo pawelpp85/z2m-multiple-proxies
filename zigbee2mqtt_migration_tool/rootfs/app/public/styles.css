@@ -62,6 +62,17 @@ h1 {
   max-width: 520px;
 }
 
+.instructions {
+  max-width: 560px;
+}
+
+.instructions summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
 .instructions p {
   margin: 0 0 8px;
 }
@@ -210,7 +221,7 @@ h1 {
 
 .row {
   display: grid;
-  grid-template-columns: 1.3fr 1.1fr 0.7fr 0.8fr 0.6fr 0.4fr 0.4fr 0.6fr;
+  grid-template-columns: 1.3fr 1.1fr 0.7fr 0.8fr 0.5fr 0.7fr 0.4fr 0.4fr 0.6fr;
   gap: 10px;
   align-items: center;
   padding: 8px 10px;
@@ -302,6 +313,36 @@ h1 {
   background: #0a0f14;
   color: var(--ink);
   font-size: 12px;
+}
+
+.type-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  display: inline-block;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.type-icon.router {
+  border-radius: 2px;
+  background: rgba(74, 163, 255, 0.3);
+  border-color: rgba(74, 163, 255, 0.6);
+}
+
+.type-icon.end {
+  border-radius: 50%;
+  background: rgba(64, 209, 156, 0.25);
+  border-color: rgba(64, 209, 156, 0.6);
+}
+
+.model-link {
+  color: #b8d8ff;
+  text-decoration: none;
+}
+
+.model-link:hover {
+  text-decoration: none;
 }
 
 .sort {

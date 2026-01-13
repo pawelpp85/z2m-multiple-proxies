@@ -12,19 +12,18 @@
         <div>
           <p class="eyebrow">Migration control</p>
           <h1>Zigbee2MQTT Migration tool</h1>
-          <div class="subtitle instructions">
-            <p>This tool helps migrate devices between Zigbee2MQTT instances, but it is not fully automatic.</p>
-            <p>Configure the add-on with URLs for all your instances. The tool discovers devices, IEEE addresses, and names, and stores the mapping for future moves. Use the mapped name here instead of renaming directly in Zigbee2MQTT.</p>
-            <p>Before migrating, make sure an install code is stored for the device. Install codes are saved per IEEE address and can be scanned with the camera and added to the target instance.</p>
+          <details class="subtitle instructions">
+            <summary>How to use</summary>
+            <p>Configure the add-on with URLs for all Zigbee2MQTT instances. The tool stores IEEE-to-name mappings and install codes.</p>
             <ol>
-              <li>Enable pairing in exactly one Zigbee2MQTT instance (do this in that instance, not here).</li>
-              <li>Click “Migrate” for the device to remove it from its current instance.</li>
-              <li>Put the device into pairing mode and follow the manufacturer or Zigbee2MQTT instructions.</li>
-              <li>After the device joins the new instance and finishes the interview, the previous name is applied automatically.</li>
+              <li>Enable pairing in exactly one instance (inside Zigbee2MQTT, not here).</li>
+              <li>Click “Migrate” to remove the device from its current instance.</li>
+              <li>Put the device into pairing mode and wait for the interview to finish.</li>
+              <li>The previous name is applied automatically after the join completes.</li>
             </ol>
-            <p><strong>Reset mappings</strong> reloads current names from all instances and removes mappings for devices not present in any instance.</p>
-            <p><strong>Apply mappings</strong> checks for mismatched names and lets you confirm proposed changes.</p>
-          </div>
+            <p><strong>Reset mappings</strong> reloads names from all instances.</p>
+            <p><strong>Apply mappings</strong> prompts for mismatches and applies changes on approval.</p>
+          </details>
         </div>
         <div class="status-card" id="pairingStatus">
           <p class="status-body">Loading pairing status...</p>
@@ -87,6 +86,7 @@
             <button class="sort" data-sort="installCode">Install code</button>
             <button class="sort" data-sort="instances">Instances</button>
             <button class="sort" data-sort="type">Type</button>
+            <button class="sort" data-sort="model">Model</button>
             <button class="sort" data-sort="lqi">LQI</button>
             <button class="sort" data-sort="online">Online</button>
             <div>Actions</div>
