@@ -19,6 +19,10 @@ const elements = {
   qrScanner: document.getElementById("qrScanner"),
   qrVideo: document.getElementById("qrVideo"),
   qrClose: document.getElementById("qrClose"),
+  mappingModal: document.getElementById("mappingModal"),
+  mappingModalText: document.getElementById("mappingModalText"),
+  mappingCancel: document.getElementById("mappingCancel"),
+  mappingApply: document.getElementById("mappingApply"),
 };
 
 let lastState = null;
@@ -30,6 +34,8 @@ let lastLogs = [];
 let scannerStream = null;
 let scannerTarget = null;
 let scannerTargetIeee = null;
+let mappingQueue = [];
+let mappingCurrent = null;
 const scanAvailable =
   "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
 const openInstallEditors = new Set();
@@ -627,7 +633,44 @@ elements.applyMappings.addEventListener("click", async () => {
     showToast(result.error);
     return;
   }
-  showToast(`Applied mappings: ${result.applied || 0}`);
+  const mismatches = result.mismatches || [];
+  if (mismatches.length === 0) {
+    showToast("No mapping changes detected");
+    return;
+  }
+  mappingQueue = mismatches;
+  showNextMapping();
+});
+
+const showNextMapping = () => {
+  if (mappingQueue.length === 0) {
+    mappingCurrent = null;
+    elements.mappingModal.classList.add("hidden");
+    return;
+  }
+  mappingCurrent = mappingQueue.shift();
+  const { current, desired, backendLabel } = mappingCurrent;
+  elements.mappingModalText.textContent = `Wykryto urzadzenie z blednie przypisanym mapowaniem (${backendLabel}). Stara nazwa: ${current}, proponowana nazwa: ${desired}.`;
+  elements.mappingModal.classList.remove("hidden");
+};
+
+elements.mappingCancel.addEventListener("click", () => {
+  showNextMapping();
+});
+
+elements.mappingApply.addEventListener("click", async () => {
+  if (!mappingCurrent) {
+    showNextMapping();
+    return;
+  }
+  const { ieee, backendId } = mappingCurrent;
+  const result = await postJson("api/mappings/apply-one", { ieee, backendId });
+  if (result.error) {
+    showToast(result.error);
+  } else if (result.applied) {
+    showToast("Mapping updated");
+  }
+  showNextMapping();
 });
 
 loadState();
