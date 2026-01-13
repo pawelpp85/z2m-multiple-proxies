@@ -12,7 +12,19 @@
         <div>
           <p class="eyebrow">Migration control</p>
           <h1>Zigbee2MQTT Migration tool</h1>
-          <p class="subtitle">Remember IEEE addresses, keep names, and guide devices between networks.</p>
+          <div class="subtitle instructions">
+            <p>This tool helps migrate devices between Zigbee2MQTT instances, but it is not fully automatic.</p>
+            <p>Configure the add-on with URLs for all your instances. The tool discovers devices, IEEE addresses, and names, and stores the mapping for future moves. Use the mapped name here instead of renaming directly in Zigbee2MQTT.</p>
+            <p>Before migrating, make sure an install code is stored for the device. Install codes are saved per IEEE address and can be scanned with the camera and added to the target instance.</p>
+            <ol>
+              <li>Enable pairing in exactly one Zigbee2MQTT instance (do this in that instance, not here).</li>
+              <li>Click “Migrate” for the device to remove it from its current instance.</li>
+              <li>Put the device into pairing mode and follow the manufacturer or Zigbee2MQTT instructions.</li>
+              <li>After the device joins the new instance and finishes the interview, the previous name is applied automatically.</li>
+            </ol>
+            <p><strong>Reset mappings</strong> reloads current names from all instances and removes mappings for devices not present in any instance.</p>
+            <p><strong>Apply mappings</strong> checks for mismatched names and lets you confirm proposed changes.</p>
+          </div>
         </div>
         <div class="status-card" id="pairingStatus">
           <p class="status-body">Loading pairing status...</p>
@@ -92,11 +104,11 @@
     </div>
     <div class="modal hidden" id="mappingModal">
       <div class="modal-card">
-        <h3>Wykryto bledne mapowanie</h3>
+        <h3>Mapping mismatch detected</h3>
         <p id="mappingModalText"></p>
         <div class="modal-actions">
-          <button class="secondary" id="mappingCancel">Anuluj</button>
-          <button class="secondary primary" id="mappingApply">Zmien</button>
+          <button class="secondary" id="mappingCancel">Cancel</button>
+          <button class="secondary primary" id="mappingApply">Change</button>
         </div>
       </div>
     </div>
