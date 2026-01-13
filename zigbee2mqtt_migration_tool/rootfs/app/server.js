@@ -155,6 +155,26 @@ const normalizeDeviceType = (device) => {
   return device.type;
 };
 
+const isInterviewComplete = (entry, backend, name) => {
+  if (entry && entry.interviewCompleted) {
+    return true;
+  }
+  if (!backend || !name || !backend.deviceStates) {
+    return false;
+  }
+  const state = backend.deviceStates.get(name);
+  if (!state || typeof state !== "object") {
+    return false;
+  }
+  if (state.interview_completed === true) {
+    return true;
+  }
+  if (state.interview_state === "successful" || state.interview_status === "successful") {
+    return true;
+  }
+  return false;
+};
+
 const isDeviceOnline = (backend, device) => {
   if (device && device.availability && typeof device.availability === "object") {
     const state = device.availability.state;
@@ -272,7 +292,7 @@ const scheduleAutoRename = () => {
     if (!mapping || !mapping.name) {
       continue;
     }
-    if (!entry.interviewCompleted) {
+    if (!isInterviewComplete(entry, backend, currentName)) {
       continue;
     }
     const currentName = firstKnownName(entry);
@@ -628,6 +648,13 @@ class Backend {
           linkquality: payload.linkquality,
         };
         entry.online = isDeviceOnline(this, pseudo);
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(payload, "interview_completed") ||
+        Object.prototype.hasOwnProperty.call(payload, "interview_state") ||
+        Object.prototype.hasOwnProperty.call(payload, "interview_status")
+      ) {
+        scheduleAutoRename();
       }
     }
   }
