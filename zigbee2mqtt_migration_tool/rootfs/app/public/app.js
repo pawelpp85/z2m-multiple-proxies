@@ -36,6 +36,7 @@ let scannerTarget = null;
 let scannerTargetIeee = null;
 let mappingQueue = [];
 let mappingCurrent = null;
+let isEditing = false;
 const scanAvailable =
   "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
 const openInstallEditors = new Set();
@@ -317,6 +318,9 @@ const renderInstanceFilters = (backends) => {
 
 const loadState = async () => {
   try {
+    if (isEditing) {
+      return;
+    }
     const response = await fetch(stateUrl);
     const data = await response.json();
     lastState = data;
@@ -332,6 +336,9 @@ const loadState = async () => {
 
 const loadLogs = async () => {
   try {
+    if (isEditing) {
+      return;
+    }
     const response = await fetch(logsUrl);
     const data = await response.json();
     lastLogs = data.logs || [];
@@ -542,6 +549,7 @@ elements.deviceTable.addEventListener("input", (event) => {
   if (saveButton) {
     saveButton.classList.toggle("hidden", !changed);
   }
+  isEditing = true;
 });
 
 elements.deviceTable.addEventListener(
@@ -549,6 +557,7 @@ elements.deviceTable.addEventListener(
   async (event) => {
     const installInput = event.target.closest("input[data-field=\"install-code\"]");
     if (!installInput) {
+      isEditing = false;
       return;
     }
     const row = installInput.closest(".row.data");
@@ -559,6 +568,7 @@ elements.deviceTable.addEventListener(
     const code = installInput.value.trim();
     const original = installInput.dataset.original || "";
     if (code === original) {
+      isEditing = false;
       return;
     }
     const result = await postJson("api/install-codes", { ieee, code });
@@ -570,6 +580,19 @@ elements.deviceTable.addEventListener(
     installInput.dataset.original = code;
     showToast(code ? "Install code saved" : "Install code removed");
     loadState();
+    isEditing = false;
+  },
+  true,
+);
+
+elements.deviceTable.addEventListener(
+  "focusin",
+  (event) => {
+    const editable = event.target.closest("input[data-field=\"name\"], input[data-field=\"install-code\"]");
+    if (!editable) {
+      return;
+    }
+    isEditing = true;
   },
   true,
 );

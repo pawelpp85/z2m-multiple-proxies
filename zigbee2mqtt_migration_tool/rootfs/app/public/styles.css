@@ -221,7 +221,7 @@ h1 {
 
 .row {
   display: grid;
-  grid-template-columns: 1.3fr 1.1fr 0.7fr 0.8fr 0.5fr 0.7fr 0.4fr 0.4fr 0.6fr;
+  grid-template-columns: 1.3fr 1.1fr 0.55fr 0.8fr 0.5fr 0.7fr 0.4fr 0.4fr 0.6fr;
   gap: 10px;
   align-items: center;
   padding: 8px 10px;
@@ -339,6 +339,11 @@ h1 {
 .model-link {
   color: #b8d8ff;
   text-decoration: none;
+  display: inline-block;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .model-link:hover {
