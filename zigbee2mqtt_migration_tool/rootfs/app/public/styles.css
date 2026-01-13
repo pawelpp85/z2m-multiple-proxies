@@ -69,7 +69,7 @@ h1 {
 .instructions summary {
   cursor: pointer;
   font-weight: 700;
-  color: var(--ink);
+  color: #ff9b4a;
   margin-bottom: 6px;
 }
 
