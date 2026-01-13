@@ -126,9 +126,12 @@ const filterDevices = (devices) => {
     );
   }
   if (selectedInstances.size > 0) {
-    filtered = filtered.filter((device) =>
-      device.instances.some((instance) => selectedInstances.has(instance)),
-    );
+    filtered = filtered.filter((device) => {
+      if (!device.instances || device.instances.length === 0) {
+        return true;
+      }
+      return device.instances.some((instance) => selectedInstances.has(instance));
+    });
   }
   return filtered;
 };
