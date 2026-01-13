@@ -325,6 +325,11 @@ h1 {
   color: #ffb191;
 }
 
+.unassigned {
+  color: #ffb191;
+  font-weight: 600;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

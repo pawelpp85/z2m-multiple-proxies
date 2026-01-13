@@ -158,9 +158,11 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
     .join("");
 
   sorted.forEach((device) => {
-    const instances = device.instances && device.instances.length > 0 ? device.instances.join(", ") : "-";
-    const onlineClass = device.online ? "" : "offline";
-    const onlineLabel = device.online ? "Online" : "Offline";
+    const hasInstances = device.instances && device.instances.length > 0;
+    const instances = hasInstances ? device.instances.join(", ") : "Unassigned";
+    const effectiveOnline = hasInstances ? device.online : false;
+    const effectiveLabel = effectiveOnline ? "Online" : "Offline";
+    const effectiveClass = effectiveOnline ? "" : "offline";
     const lqi = typeof device.linkquality === "number" ? device.linkquality : "-";
     const disabled = device.instances.length === 0;
     const draft = installDrafts.has(device.ieee) ? installDrafts.get(device.ieee) : device.installCode || "";
@@ -203,10 +205,10 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
             }
           </div>
         </div>
-        <div>${instances}</div>
+        <div class="${hasInstances ? "" : "unassigned"}">${instances}</div>
         <div>${device.type || "Unknown"}</div>
         <div>${lqi}</div>
-        <div><span class="badge ${onlineClass}">${onlineLabel}</span></div>
+        <div><span class="badge ${effectiveClass}">${effectiveLabel}</span></div>
         <div class="actions">
           <button data-action="migrate" ${migrationAvailable && !disabled ? "" : "disabled"}>Migrate</button>
         </div>
