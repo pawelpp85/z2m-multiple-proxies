@@ -28,9 +28,8 @@ let selectedInstances = new Set();
 let lastLogs = [];
 let scannerStream = null;
 let scannerTarget = null;
-const isMobile = window.matchMedia("(pointer: coarse)").matches;
-const canScan =
-  isMobile && "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+const scanAvailable =
+  "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
 const openInstallEditors = new Set();
 const installDrafts = new Map();
 
@@ -178,7 +177,9 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
           <div class="install-editor ${isOpen ? "" : "hidden"}">
             <input type="text" value="${draft}" data-field="install-code" />
             <button class="ghost" data-action="install-save">Save</button>
-            ${canScan ? `<button class="ghost" data-action="install-scan">Scan</button>` : ""}
+            <button class="ghost scan-button" data-action="install-scan"${
+              scanAvailable ? "" : " disabled"
+            }>Scan</button>
             <select data-action="install-apply">
               <option value="" selected disabled>Apply to...</option>
               ${backendOptions}
@@ -307,7 +308,7 @@ const postEmpty = async (url) => {
 };
 
 const showScanner = async (input) => {
-  if (!canScan) {
+  if (!scanAvailable) {
     showToast("Scanner not available");
     return;
   }
@@ -327,12 +328,12 @@ const showScanner = async (input) => {
       const results = await detector.detect(elements.qrVideo);
       if (results && results.length > 0) {
         const value = results[0].rawValue || "";
-        if (scannerTarget) {
+        if (value && scannerTarget) {
           scannerTarget.value = value;
           scannerTarget.dispatchEvent(new Event("input", { bubbles: true }));
+          closeScanner();
+          return;
         }
-        closeScanner();
-        return;
       }
       requestAnimationFrame(scan);
     };
