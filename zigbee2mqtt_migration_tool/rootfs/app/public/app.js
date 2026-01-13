@@ -1,5 +1,5 @@
-const stateUrl = "/api/state";
-const logsUrl = "/api/logs";
+const stateUrl = "api/state";
+const logsUrl = "api/logs";
 
 const elements = {
   pairingStatus: document.getElementById("pairingStatus"),
@@ -165,7 +165,7 @@ const handleAction = async (action, row) => {
       showToast("Name is required");
       return;
     }
-    const result = await postJson("/api/mappings", { ieee, name });
+    const result = await postJson("api/mappings", { ieee, name });
     if (result.error) {
       showToast(result.error);
       return;
@@ -179,7 +179,7 @@ const handleAction = async (action, row) => {
     if (!confirm("Delete mapping entry?")) {
       return;
     }
-    const result = await deleteJson(`/api/mappings/${ieee}`);
+    const result = await deleteJson(`api/mappings/${ieee}`);
     if (result.error) {
       showToast(result.error);
       return;
@@ -190,14 +190,14 @@ const handleAction = async (action, row) => {
   }
 
   if (action === "remove") {
-    const result = await postJson("/api/remove", { ieee });
+    const result = await postJson("api/remove", { ieee });
     showToast(`Remove: ${result.status}`);
     loadState();
     return;
   }
 
   if (action === "migrate") {
-    const result = await postJson("/api/migrate", { ieee });
+    const result = await postJson("api/migrate", { ieee });
     showToast(`Migrate: ${result.status}`);
     loadState();
   }
