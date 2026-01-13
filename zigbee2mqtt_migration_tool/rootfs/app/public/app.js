@@ -28,6 +28,7 @@ let selectedInstances = new Set();
 let lastLogs = [];
 let scannerStream = null;
 let scannerTarget = null;
+let scannerTargetIeee = null;
 const scanAvailable =
   "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
 const openInstallEditors = new Set();
@@ -313,6 +314,8 @@ const showScanner = async (input) => {
     return;
   }
   scannerTarget = input;
+  const row = input.closest(".row.data");
+  scannerTargetIeee = row ? row.dataset.ieee : null;
   elements.qrScanner.classList.remove("hidden");
   try {
     scannerStream = await navigator.mediaDevices.getUserMedia({
@@ -328,9 +331,20 @@ const showScanner = async (input) => {
       const results = await detector.detect(elements.qrVideo);
       if (results && results.length > 0) {
         const value = results[0].rawValue || "";
-        if (value && scannerTarget) {
-          scannerTarget.value = value;
-          scannerTarget.dispatchEvent(new Event("input", { bubbles: true }));
+        if (value) {
+          let target = scannerTarget;
+          if (!target && scannerTargetIeee) {
+            const activeRow = document.querySelector(`.row.data[data-ieee="${scannerTargetIeee}"]`);
+            if (activeRow) {
+              target = activeRow.querySelector("input[data-field=\"install-code\"]");
+            }
+          }
+          if (target) {
+            target.value = value;
+            target.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+          const trimmed = value.length > 20 ? `${value.slice(0, 20)}…` : value;
+          showToast(`Read code: ${trimmed}`);
           closeScanner();
           return;
         }
@@ -353,6 +367,7 @@ const closeScanner = () => {
   elements.qrVideo.srcObject = null;
   elements.qrScanner.classList.add("hidden");
   scannerTarget = null;
+  scannerTargetIeee = null;
 };
 
 const handleAction = async (action, row) => {
