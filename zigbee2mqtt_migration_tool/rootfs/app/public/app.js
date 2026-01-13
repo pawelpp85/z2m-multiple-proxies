@@ -160,11 +160,11 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
     const onlineLabel = device.online ? "Online" : "Offline";
     const lqi = typeof device.linkquality === "number" ? device.linkquality : "-";
     const disabled = device.instances.length === 0;
-    const hasInstall = !!device.installCode;
-    const installLabel = hasInstall ? "Edit" : "+";
-    const installClass = hasInstall ? "" : "empty";
-    const isOpen = openInstallEditors.has(device.ieee);
     const draft = installDrafts.has(device.ieee) ? installDrafts.get(device.ieee) : device.installCode || "";
+    const hasInstall = draft.trim().length > 0;
+    const installLabel = hasInstall ? "Edit" : "+";
+    const installClass = hasInstall ? "has-code" : "empty";
+    const isOpen = openInstallEditors.has(device.ieee);
 
     rows.push(`
       <div class="row data" data-ieee="${device.ieee}">
@@ -176,15 +176,26 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
         <div class="install-cell">
           <button class="ghost install-toggle ${installClass}" data-action="install-edit">${installLabel}</button>
           <div class="install-editor ${isOpen ? "" : "hidden"}">
-            <input type="text" value="${draft}" data-field="install-code" />
-            <button class="ghost" data-action="install-save">Save</button>
+            <input type="text" value="${draft}" data-field="install-code" data-original="${draft}" />
             <button class="ghost scan-button" data-action="install-scan"${
               scanAvailable ? "" : " disabled"
-            }>Scan</button>
-            <select data-action="install-apply">
-              <option value="" selected disabled>Apply to...</option>
+            } aria-label="Scan QR code">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="3" width="6" height="6" rx="1"></rect>
+                <rect x="15" y="3" width="6" height="6" rx="1"></rect>
+                <rect x="3" y="15" width="6" height="6" rx="1"></rect>
+                <rect x="9" y="9" width="6" height="6" rx="1"></rect>
+                <path d="M15 15h6v6h-6z"></path>
+              </svg>
+            </button>
+            ${
+              hasInstall
+                ? `<select data-action="install-apply">
+              <option value="" selected disabled>Add to...</option>
               ${backendOptions}
-            </select>
+            </select>`
+                : ""
+            }
           </div>
         </div>
         <div>${instances}</div>
@@ -347,6 +358,7 @@ const showScanner = async (input) => {
           if (target) {
             target.value = value;
             target.dispatchEvent(new Event("input", { bubbles: true }));
+            target.dispatchEvent(new Event("blur", { bubbles: true }));
           }
           const trimmed = value.length > 20 ? `${value.slice(0, 20)}…` : value;
           showToast(`Read code: ${trimmed}`);
@@ -409,20 +421,6 @@ const handleAction = async (action, row) => {
         input.focus();
       }
     }
-    return;
-  }
-
-  if (action === "install-save") {
-    const input = row.querySelector("input[data-field=\"install-code\"]");
-    const code = input ? input.value.trim() : "";
-    const result = await postJson("api/install-codes", { ieee, code });
-    if (result.error) {
-      showToast(result.error);
-      return;
-    }
-    installDrafts.delete(ieee);
-    showToast(code ? "Install code saved" : "Install code removed");
-    loadState();
     return;
   }
 
@@ -493,6 +491,36 @@ elements.deviceTable.addEventListener("input", (event) => {
     saveButton.classList.toggle("hidden", !changed);
   }
 });
+
+elements.deviceTable.addEventListener(
+  "blur",
+  async (event) => {
+    const installInput = event.target.closest("input[data-field=\"install-code\"]");
+    if (!installInput) {
+      return;
+    }
+    const row = installInput.closest(".row.data");
+    if (!row) {
+      return;
+    }
+    const ieee = row.dataset.ieee;
+    const code = installInput.value.trim();
+    const original = installInput.dataset.original || "";
+    if (code === original) {
+      return;
+    }
+    const result = await postJson("api/install-codes", { ieee, code });
+    if (result.error) {
+      showToast(result.error);
+      return;
+    }
+    installDrafts.delete(ieee);
+    installInput.dataset.original = code;
+    showToast(code ? "Install code saved" : "Install code removed");
+    loadState();
+  },
+  true,
+);
 
 elements.deviceTable.addEventListener("change", async (event) => {
   const select = event.target.closest("select[data-action=\"install-apply\"]");

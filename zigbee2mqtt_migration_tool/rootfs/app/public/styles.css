@@ -257,6 +257,20 @@ h1 {
   opacity: 0.5;
 }
 
+.install-toggle.has-code {
+  background: rgba(25, 58, 110, 0.85);
+  color: #dbe9ff;
+  border: 1px solid rgba(53, 104, 180, 0.5);
+}
+
+.scan-button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+
 .install-editor {
   display: flex;
   flex-wrap: wrap;
