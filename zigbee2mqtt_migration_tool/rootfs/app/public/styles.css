@@ -73,16 +73,30 @@ h1 {
   margin-bottom: 6px;
 }
 
-.instructions p {
+.instruction-block {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin: 10px 0;
+}
+
+.instruction-block h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: #ffb26b;
+}
+
+.instruction-block p {
   margin: 0 0 8px;
 }
 
-.instructions ol {
-  margin: 6px 0 10px;
+.instruction-block ol {
+  margin: 6px 0 0;
   padding-left: 18px;
 }
 
-.instructions li {
+.instruction-block li {
   margin-bottom: 6px;
 }
 
