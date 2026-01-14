@@ -34,6 +34,7 @@ const elements = {
   haDeviceInfo: document.getElementById("haDeviceInfo"),
   haEntityInfo: document.getElementById("haEntityInfo"),
   haAutomationInfo: document.getElementById("haAutomationInfo"),
+  haAutomationList: document.getElementById("haAutomationList"),
   haAutomationPreview: document.getElementById("haAutomationPreview"),
   haAutomationApply: document.getElementById("haAutomationApply"),
 };
@@ -53,6 +54,7 @@ let isEditing = false;
 let haModalIeee = null;
 let haAutomationPreview = null;
 let lastHaInfo = null;
+let haBaseUrl = "";
 const scanAvailable =
   "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
 const openInstallEditors = new Set();
@@ -422,14 +424,32 @@ const formatIdentifiers = (items) => {
     .join(", ");
 };
 
+const buildHaEntityUrl = (entityId) => {
+  if (!haBaseUrl || !entityId) {
+    return "";
+  }
+  return `${haBaseUrl.replace(/\\/$/, "")}/config/entities?entity_id=${encodeURIComponent(entityId)}`;
+};
+
+const buildHaAutomationUrl = (automationId) => {
+  if (!haBaseUrl || !automationId) {
+    return "";
+  }
+  return `${haBaseUrl.replace(/\\/$/, "")}/config/automation/edit/${encodeURIComponent(automationId)}`;
+};
+
 const renderHaInfo = (payload) => {
   const info = payload?.info;
+  if (payload?.haUrl) {
+    haBaseUrl = payload.haUrl;
+  }
   if (!info) {
     elements.haStatus.textContent = payload?.error || "No Home Assistant data.";
     elements.haSnapshotInfo.textContent = "-";
     elements.haDeviceInfo.textContent = "-";
     elements.haEntityInfo.innerHTML = "";
     elements.haAutomationInfo.textContent = "-";
+    elements.haAutomationList.innerHTML = "";
     elements.haSnapshot.disabled = true;
     elements.haRestore.disabled = true;
     elements.haAutomationPreview.disabled = true;
@@ -490,16 +510,17 @@ const renderHaInfo = (payload) => {
         `<div class="ha-row header">
           <div>Current entity_id</div>
           <div>Unique ID</div>
-          <div>Platform</div>
+          <div>Open</div>
           <div>Status</div>
         </div>`,
       ];
       currentEntities.forEach((item) => {
+        const entityUrl = buildHaEntityUrl(item.entity_id);
         rows.push(`
           <div class="ha-row">
             <div class="mono">${item.entity_id || "-"}</div>
             <div class="mono">${item.unique_id || "-"}</div>
-            <div>${item.platform || "-"}</div>
+            <div>${entityUrl ? `<a class="ha-link" href="${entityUrl}" target="_blank" rel="noreferrer">Open</a>` : "-"}</div>
             <div class="ha-status ok">current</div>
           </div>
         `);
@@ -512,17 +533,21 @@ const renderHaInfo = (payload) => {
         <div>Saved entity_id</div>
         <div>Current entity_id</div>
         <div>Unique ID base</div>
+        <div>Open</div>
         <div>Status</div>
       </div>`,
     ];
     plan.forEach((item) => {
       const status = item.status || "missing";
       const base = item.unique_id_base || item.unique_id || "-";
+      const linkId = item.current_entity_id || item.desired_entity_id;
+      const entityUrl = buildHaEntityUrl(linkId);
       rows.push(`
         <div class="ha-row">
           <div class="mono">${item.desired_entity_id || "-"}</div>
           <div class="mono">${item.current_entity_id || "-"}</div>
           <div class="mono">${base}</div>
+          <div>${entityUrl ? `<a class="ha-link" href="${entityUrl}" target="_blank" rel="noreferrer">Open</a>` : "-"}</div>
           <div class="ha-status ${status}">${status}</div>
         </div>
       `);
@@ -547,8 +572,28 @@ const renderHaInfo = (payload) => {
       }
     }
     elements.haAutomationInfo.textContent = lines.join("\n");
+    const affected = haAutomationPreview.affected || [];
+    if (affected.length > 0) {
+      elements.haAutomationList.innerHTML = affected
+        .slice(0, 10)
+        .map((entry) => {
+          const url = buildHaAutomationUrl(entry.id);
+          const label = entry.alias || entry.id || "automation";
+          if (!url) {
+            return `<span class="ha-more">${label}</span>`;
+          }
+          return `<a class="ha-link" href="${url}" target="_blank" rel="noreferrer">${label}</a>`;
+        })
+        .join("");
+      if (affected.length > 10) {
+        elements.haAutomationList.innerHTML += `<span class="ha-more">+${affected.length - 10} more...</span>`;
+      }
+    } else {
+      elements.haAutomationList.innerHTML = "";
+    }
   } else {
     elements.haAutomationInfo.textContent = "No automation preview run yet.";
+    elements.haAutomationList.innerHTML = "";
   }
   elements.haAutomationApply.disabled = !haAutomationPreview || haAutomationPreview.affectedAutomations === 0;
   elements.haSnapshot.disabled = false;
@@ -564,6 +609,7 @@ const openHaModal = async (ieee, label) => {
   elements.haDeviceInfo.textContent = "-";
   elements.haEntityInfo.innerHTML = "";
   elements.haAutomationInfo.textContent = "No automation preview run yet.";
+  elements.haAutomationList.innerHTML = "";
   elements.haSnapshot.disabled = true;
   elements.haRestore.disabled = true;
   elements.haAutomationPreview.disabled = true;
@@ -572,6 +618,9 @@ const openHaModal = async (ieee, label) => {
   try {
     const result = await getJson(`api/ha/device?ieee=${encodeURIComponent(ieee)}`);
     lastHaInfo = result.info || null;
+    if (result.haUrl) {
+      haBaseUrl = result.haUrl;
+    }
     renderHaInfo(result);
   } catch (error) {
     lastHaInfo = null;
@@ -1125,6 +1174,9 @@ elements.haAutomationPreview.addEventListener("click", async () => {
     return;
   }
   haAutomationPreview = result.result || null;
+  if (result.haUrl) {
+    haBaseUrl = result.haUrl;
+  }
   renderHaInfo({ info: lastHaInfo });
 });
 

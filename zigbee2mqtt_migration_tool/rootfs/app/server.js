@@ -624,15 +624,77 @@ const processHaRestores = async () => {
   }
 };
 
+const isUnknownHaCommand = (error) => {
+  if (!error) {
+    return false;
+  }
+  const message = String(error.message || error).toLowerCase();
+  return message.includes("unknown command") || message.includes("unknown_command");
+};
+
+const haRestRequest = async (method, pathName, payload) => {
+  const { url, token } = getHaConfig();
+  if (!url || !token) {
+    throw new Error("Home Assistant URL or token missing");
+  }
+  const target = new URL(pathName, url);
+  const isHttps = target.protocol === "https:";
+  const client = isHttps ? require("https") : require("http");
+  const body = payload ? JSON.stringify(payload) : null;
+  const options = {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  };
+  return new Promise((resolve, reject) => {
+    const req = client.request(target, options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
+        if (res.statusCode && res.statusCode >= 400) {
+          reject(new Error(`Home Assistant REST error ${res.statusCode}`));
+          return;
+        }
+        if (!data) {
+          resolve(null);
+          return;
+        }
+        try {
+          resolve(JSON.parse(data));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    req.on("error", reject);
+    if (body) {
+      req.write(body);
+    }
+    req.end();
+  });
+};
+
 const fetchHaAutomations = async (client) => {
-  const result = await client.request("config/automation/config");
-  if (Array.isArray(result)) {
-    return result;
+  try {
+    const result = await client.request("config/automation/config");
+    if (Array.isArray(result)) {
+      return result;
+    }
+    if (result && Array.isArray(result.config)) {
+      return result.config;
+    }
+    return [];
+  } catch (error) {
+    if (!isUnknownHaCommand(error)) {
+      throw error;
+    }
+    const result = await haRestRequest("GET", "/api/config/automation/config");
+    return Array.isArray(result) ? result : [];
   }
-  if (result && Array.isArray(result.config)) {
-    return result.config;
-  }
-  return [];
 };
 
 const normalizeAutomationEntry = (entry) => {
@@ -640,13 +702,13 @@ const normalizeAutomationEntry = (entry) => {
     return null;
   }
   if (entry.id && entry.config && typeof entry.config === "object") {
-    return { id: entry.id, config: entry.config };
+    return { id: entry.id, config: entry.config, alias: entry.config.alias || entry.config.id || "" };
   }
   if (entry.id && entry.trigger) {
-    return { id: entry.id, config: entry };
+    return { id: entry.id, config: entry, alias: entry.alias || entry.id || "" };
   }
   if (entry.alias && entry.trigger) {
-    return { id: entry.id || entry.alias, config: entry };
+    return { id: entry.id || entry.alias, config: entry, alias: entry.alias || entry.id || "" };
   }
   return null;
 };
@@ -725,11 +787,17 @@ const previewAutomationRewrite = async () => {
     const { map, details } = await buildDeviceIdMapWithClient(client);
     let affectedAutomations = 0;
     let replacementHits = 0;
+    const affected = [];
     for (const automation of automations) {
       const result = rewriteDeviceIds(automation.config, map);
       if (result.changed) {
         affectedAutomations += 1;
         replacementHits += result.hits;
+        affected.push({
+          id: automation.id || "",
+          alias: automation.alias || "",
+          hits: result.hits,
+        });
       }
     }
     return {
@@ -737,6 +805,7 @@ const previewAutomationRewrite = async () => {
       affectedAutomations,
       replacementHits,
       deviceIdMap: details,
+      affected,
     };
   });
 };
@@ -753,10 +822,20 @@ const applyAutomationRewrite = async () => {
       if (!result.changed) {
         continue;
       }
-      await client.request("config/automation/update", {
-        id: automation.id,
-        config: result.value,
-      });
+      try {
+        await client.request("config/automation/update", {
+          id: automation.id,
+          config: result.value,
+        });
+      } catch (error) {
+        if (!isUnknownHaCommand(error)) {
+          throw error;
+        }
+        if (!automation.id) {
+          continue;
+        }
+        await haRestRequest("PUT", `/api/config/automation/config/${automation.id}`, result.value);
+      }
       updated += 1;
       replacementHits += result.hits;
     }
@@ -1495,7 +1574,7 @@ app.get("/api/ha/device", async (req, res) => {
   }
   try {
     const info = await buildHaDeviceInfo(ieee);
-    res.json({ ok: true, info });
+    res.json({ ok: true, info, haUrl: url });
   } catch (error) {
     res.status(500).json({ error: error.message || "Failed to load HA device info" });
   }
@@ -1547,7 +1626,7 @@ app.post("/api/ha/automations/preview", async (req, res) => {
   }
   try {
     const result = await previewAutomationRewrite();
-    res.json({ ok: true, result });
+    res.json({ ok: true, result, haUrl: url });
   } catch (error) {
     res.status(500).json({ error: error.message || "Failed to preview automations" });
   }
