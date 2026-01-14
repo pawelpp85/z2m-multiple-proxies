@@ -1460,6 +1460,9 @@ const buildDeviceList = () => {
     }
     const mapping = mappings[ieee] || { name: "" };
     const entry = deviceIndex.get(ieee);
+    if (!entry) {
+      continue;
+    }
     const migration = pendingMigrations.get(ieee);
     const mappingName = mapping.name ? mapping.name.trim() : "";
     const currentName = entry ? firstKnownName(entry) : "";
