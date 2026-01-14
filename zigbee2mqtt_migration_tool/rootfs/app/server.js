@@ -218,6 +218,9 @@ const normalizeDeviceType = (device) => {
   if (!device || !device.type) {
     return "Unknown";
   }
+  if (device.type === "Coordinator") {
+    return "Coordinator";
+  }
   if (device.type === "Router") {
     return "Router";
   }
@@ -225,6 +228,21 @@ const normalizeDeviceType = (device) => {
     return "End device";
   }
   return device.type;
+};
+
+const isCoordinatorDevice = (backend, device) => {
+  if (!device || typeof device !== "object") {
+    return false;
+  }
+  if (device.type === "Coordinator") {
+    return true;
+  }
+  if (device.friendly_name && device.friendly_name.toLowerCase() === "coordinator") {
+    return true;
+  }
+  const ieee = device.ieee_address;
+  const coordinatorIeee = backend?.bridgeInfo?.coordinator?.ieee_address;
+  return !!ieee && !!coordinatorIeee && ieee === coordinatorIeee;
 };
 
 const isInterviewCompleteDevice = (device, backend) => {
@@ -1192,6 +1210,9 @@ const rebuildDeviceIndex = () => {
 
     for (const device of backend.devicesRaw) {
       if (!device || !device.ieee_address) {
+        continue;
+      }
+      if (isCoordinatorDevice(backend, device)) {
         continue;
       }
       const ieee = device.ieee_address;
