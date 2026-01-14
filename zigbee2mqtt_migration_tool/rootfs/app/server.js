@@ -739,14 +739,14 @@ const normalizeAutomationEntry = (entry) => {
   return null;
 };
 
-const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap) => {
+const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap, entityRegistryLookup) => {
   if (Array.isArray(value)) {
     let changed = false;
     let hits = 0;
     let deviceHits = 0;
     let entityHits = 0;
     const next = value.map((item) => {
-      const result = rewriteAutomationIds(item, deviceIdMap, entityRegistryIdMap);
+      const result = rewriteAutomationIds(item, deviceIdMap, entityRegistryIdMap, entityRegistryLookup);
       if (result.changed) {
         changed = true;
         hits += result.hits;
@@ -765,6 +765,8 @@ const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap) => {
   let deviceHits = 0;
   let entityHits = 0;
   const next = {};
+  const currentDeviceId = typeof value.device_id === "string" ? value.device_id : null;
+  const currentDomain = typeof value.domain === "string" ? value.domain : null;
   for (const [key, entry] of Object.entries(value)) {
     if (key === "device_id" && typeof entry === "string" && deviceIdMap.has(entry)) {
       next[key] = deviceIdMap.get(entry);
@@ -799,7 +801,28 @@ const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap) => {
         }
       }
     }
-    const result = rewriteAutomationIds(entry, deviceIdMap, entityRegistryIdMap);
+    if (
+      key === "entity_id" &&
+      typeof entry === "string" &&
+      entityRegistryLookup &&
+      currentDeviceId &&
+      currentDomain
+    ) {
+      const looksLikeRegistryId = /^[a-f0-9]{32}$/i.test(entry);
+      const knownIds = entityRegistryLookup.registryIdSet;
+      if (looksLikeRegistryId && !knownIds.has(entry)) {
+        const domainMap = entityRegistryLookup.deviceDomainMap.get(currentDeviceId);
+        const candidates = domainMap ? domainMap.get(currentDomain) : null;
+        if (candidates && candidates.length === 1) {
+          next[key] = candidates[0];
+          changed = true;
+          hits += 1;
+          entityHits += 1;
+          continue;
+        }
+      }
+    }
+    const result = rewriteAutomationIds(entry, deviceIdMap, entityRegistryIdMap, entityRegistryLookup);
     next[key] = result.value;
     if (result.changed) {
       changed = true;
@@ -844,6 +867,26 @@ const buildEntityRegistryIdMapWithClient = async (client) => {
   ]);
   const map = new Map();
   const details = [];
+  const registryIdSet = new Set();
+  const deviceDomainMap = new Map();
+  for (const entry of entities || []) {
+    if (!entry || !entry.id || !entry.entity_id) {
+      continue;
+    }
+    registryIdSet.add(entry.id);
+    const domain = entry.entity_id.split(".")[0];
+    if (!entry.device_id || !domain) {
+      continue;
+    }
+    if (!deviceDomainMap.has(entry.device_id)) {
+      deviceDomainMap.set(entry.device_id, new Map());
+    }
+    const domainMap = deviceDomainMap.get(entry.device_id);
+    if (!domainMap.has(domain)) {
+      domainMap.set(domain, []);
+    }
+    domainMap.get(domain).push(entry.id);
+  }
   for (const [ieee, snapshot] of Object.entries(haSnapshots)) {
     if (!snapshot || !snapshot.device || !snapshot.device.id || !snapshot.entities) {
       continue;
@@ -893,7 +936,7 @@ const buildEntityRegistryIdMapWithClient = async (client) => {
       });
     }
   }
-  return { map, details };
+  return { map, details, registryIdSet, deviceDomainMap };
 };
 
 const buildDeviceIdMap = async () => {
@@ -905,14 +948,15 @@ const previewAutomationRewrite = async () => {
     const automationRaw = await fetchHaAutomations(client);
     const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean);
     const { map, details } = await buildDeviceIdMapWithClient(client);
-    const { map: entityMap, details: entityDetails } = await buildEntityRegistryIdMapWithClient(client);
+    const entityInfo = await buildEntityRegistryIdMapWithClient(client);
+    const { map: entityMap, details: entityDetails } = entityInfo;
     let affectedAutomations = 0;
     let replacementHits = 0;
     let deviceHits = 0;
     let entityHits = 0;
     const affected = [];
     for (const automation of automations) {
-      const result = rewriteAutomationIds(automation.config, map, entityMap);
+      const result = rewriteAutomationIds(automation.config, map, entityMap, entityInfo);
       if (result.changed) {
         affectedAutomations += 1;
         replacementHits += result.hits;
@@ -955,11 +999,12 @@ const applyAutomationRewrite = async () => {
     const automationRaw = await fetchHaAutomations(client);
     const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean);
     const { map, details } = await buildDeviceIdMapWithClient(client);
-    const { map: entityMap } = await buildEntityRegistryIdMapWithClient(client);
+    const entityInfo = await buildEntityRegistryIdMapWithClient(client);
+    const { map: entityMap } = entityInfo;
     let updated = 0;
     let replacementHits = 0;
     for (const automation of automations) {
-      const result = rewriteAutomationIds(automation.config, map, entityMap);
+      const result = rewriteAutomationIds(automation.config, map, entityMap, entityInfo);
       if (!result.changed) {
         continue;
       }
