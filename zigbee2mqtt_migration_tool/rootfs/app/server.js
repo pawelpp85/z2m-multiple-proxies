@@ -876,7 +876,7 @@ const buildDeviceIdMapWithClient = async (client) => {
   return { map, details };
 };
 
-const buildEntityRegistryIdMapWithClient = async (client) => {
+const buildEntityRegistryIdMapWithClient = async (client, filterIeee = null) => {
   const [devices, entities] = await Promise.all([
     client.request("config/device_registry/list"),
     client.request("config/entity_registry/list"),
@@ -905,6 +905,9 @@ const buildEntityRegistryIdMapWithClient = async (client) => {
     domainMap.get(domain).push(entry.id);
   }
   for (const [ieee, snapshot] of Object.entries(haSnapshots)) {
+    if (filterIeee && ieee !== filterIeee) {
+      continue;
+    }
     if (!snapshot || !snapshot.device || !snapshot.device.id || !snapshot.entities) {
       continue;
     }
@@ -1055,6 +1058,42 @@ const applyAutomationRewrite = async () => {
       updated,
       replacementHits,
       deviceIdMap: details,
+    };
+  });
+};
+
+const applyAutomationRewriteForDevice = async (ieee) => {
+  return withHaClient(async (client) => {
+    const automationRaw = await fetchHaAutomations(client);
+    const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean);
+    const deviceMap = await buildDeviceIdMapWithClient(client);
+    const entityInfo = await buildEntityRegistryIdMapWithClient(client, ieee);
+    const deviceMapEntries = deviceMap.details.filter((entry) => entry.ieee === ieee);
+    const deviceIdMap = new Map(deviceMapEntries.map((entry) => [entry.from, entry.to]));
+    const entityIdMap = entityInfo.map;
+    const entityInfoScoped = {
+      ...entityInfo,
+      snapshotDeviceIds: new Set(entityInfo.snapshotDeviceIds),
+    };
+    let updated = 0;
+    let replacementHits = 0;
+    for (const automation of automations) {
+      const result = rewriteAutomationIds(automation.config, deviceIdMap, entityIdMap, entityInfoScoped);
+      if (!result.changed) {
+        continue;
+      }
+      if (!automation.id) {
+        continue;
+      }
+      await haRestRequest("POST", `/api/config/automation/config/${automation.id}`, result.value);
+      updated += 1;
+      replacementHits += result.hits;
+    }
+    return {
+      updated,
+      replacementHits,
+      deviceIdMap: deviceMapEntries,
+      entityIdMap: entityInfo.details,
     };
   });
 };
@@ -1863,6 +1902,25 @@ app.post("/api/ha/automations/rewrite", async (req, res) => {
     res.json({ ok: true, result });
   } catch (error) {
     res.status(500).json({ error: error.message || "Failed to rewrite automations" });
+  }
+});
+
+app.post("/api/ha/automations/rewrite-device", async (req, res) => {
+  const { ieee } = req.body || {};
+  if (!ieee || typeof ieee !== "string") {
+    res.status(400).json({ error: "Missing IEEE address" });
+    return;
+  }
+  const { url, token } = getHaConfig();
+  if (!url || !token) {
+    res.status(400).json({ error: "Home Assistant is not configured" });
+    return;
+  }
+  try {
+    const result = await applyAutomationRewriteForDevice(ieee);
+    res.json({ ok: true, result });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Failed to rewrite automations for device" });
   }
 });
 

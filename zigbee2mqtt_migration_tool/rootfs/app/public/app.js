@@ -37,6 +37,7 @@ const elements = {
   haAutomationList: document.getElementById("haAutomationList"),
   haAutomationPreview: document.getElementById("haAutomationPreview"),
   haAutomationApply: document.getElementById("haAutomationApply"),
+  haAutomationDeviceApply: document.getElementById("haAutomationDeviceApply"),
 };
 
 let lastState = null;
@@ -454,6 +455,7 @@ const renderHaInfo = (payload) => {
     elements.haRestore.disabled = true;
     elements.haAutomationPreview.disabled = true;
     elements.haAutomationApply.disabled = true;
+    elements.haAutomationDeviceApply.disabled = true;
     return;
   }
 
@@ -612,6 +614,7 @@ const renderHaInfo = (payload) => {
   elements.haAutomationApply.disabled = !haAutomationPreview || haAutomationPreview.affectedAutomations === 0;
   elements.haSnapshot.disabled = false;
   elements.haAutomationPreview.disabled = false;
+  elements.haAutomationDeviceApply.disabled = !haModalIeee;
 };
 
 const openHaModal = async (ieee, label) => {
@@ -628,6 +631,7 @@ const openHaModal = async (ieee, label) => {
   elements.haRestore.disabled = true;
   elements.haAutomationPreview.disabled = true;
   elements.haAutomationApply.disabled = true;
+  elements.haAutomationDeviceApply.disabled = true;
   elements.haModal.classList.remove("hidden");
   try {
     const result = await getJson(`api/ha/device?ieee=${encodeURIComponent(ieee)}`);
@@ -1204,6 +1208,24 @@ elements.haAutomationApply.addEventListener("click", async () => {
     return;
   }
   showToast("Automation rewrite applied");
+  haAutomationPreview = null;
+  openHaModal(haModalIeee);
+});
+
+elements.haAutomationDeviceApply.addEventListener("click", async () => {
+  if (!haModalIeee) {
+    showToast("Select a device first");
+    return;
+  }
+  if (!confirm("Fix automations for this device now?")) {
+    return;
+  }
+  const result = await postJson("api/ha/automations/rewrite-device", { ieee: haModalIeee });
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  showToast("Automations updated for device");
   haAutomationPreview = null;
   openHaModal(haModalIeee);
 });
