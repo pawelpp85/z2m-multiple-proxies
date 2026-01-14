@@ -488,7 +488,7 @@ button {
 
 button.secondary {
   background: #e3e8ef;
-  color: var(--ink);
+  color: #0b0f14;
   border: 1px solid var(--stroke);
 }
 
@@ -726,6 +726,8 @@ button:disabled {
   width: min(920px, 92vw);
   background: linear-gradient(135deg, rgba(23, 28, 38, 0.95), rgba(18, 24, 33, 0.95));
   border: 1px solid rgba(148, 163, 184, 0.35);
+  max-height: 90vh;
+  overflow: auto;
 }
 
 .ha-modal-header {
@@ -774,6 +776,8 @@ button:disabled {
   display: grid;
   gap: 6px;
   font-size: 12px;
+  max-height: 260px;
+  overflow: auto;
 }
 
 .ha-row {

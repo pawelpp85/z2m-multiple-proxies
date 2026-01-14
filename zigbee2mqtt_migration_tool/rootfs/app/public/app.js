@@ -482,7 +482,30 @@ const renderHaInfo = (payload) => {
 
   const plan = info.restorePlan || [];
   if (plan.length === 0) {
-    elements.haEntityInfo.innerHTML = "<div class=\"subtitle\">No entity data available.</div>";
+    const currentEntities = info.currentEntities || [];
+    if (currentEntities.length === 0) {
+      elements.haEntityInfo.innerHTML = "<div class=\"subtitle\">No entity data available.</div>";
+    } else {
+      const rows = [
+        `<div class="ha-row header">
+          <div>Current entity_id</div>
+          <div>Unique ID</div>
+          <div>Platform</div>
+          <div>Status</div>
+        </div>`,
+      ];
+      currentEntities.forEach((item) => {
+        rows.push(`
+          <div class="ha-row">
+            <div class="mono">${item.entity_id || "-"}</div>
+            <div class="mono">${item.unique_id || "-"}</div>
+            <div>${item.platform || "-"}</div>
+            <div class="ha-status ok">current</div>
+          </div>
+        `);
+      });
+      elements.haEntityInfo.innerHTML = rows.join("");
+    }
   } else {
     const rows = [
       `<div class="ha-row header">
