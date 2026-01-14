@@ -1431,7 +1431,7 @@ const describeMigration = (migration) => {
     return "Removing from source";
   }
   if (migration.configuring && !migration.configured) {
-    return `Configuring on target · ${pairingHint}`;
+    return "Configuring on target";
   }
   if (migration.configured && !migration.renameSent) {
     return "Configuration complete";
@@ -1968,6 +1968,28 @@ app.delete("/api/mappings/:ieee", (req, res) => {
   }
   delete mappings[ieee];
   saveMappings();
+  res.json({ ok: true });
+});
+
+app.post("/api/mappings/delete-offline", (req, res) => {
+  const { ieee } = req.body || {};
+  if (!ieee || typeof ieee !== "string") {
+    res.status(400).json({ error: "Missing IEEE address" });
+    return;
+  }
+  const entry = deviceIndex.get(ieee);
+  if (entry && entry.online) {
+    res.status(400).json({ error: "Device is online" });
+    return;
+  }
+  if (mappings[ieee]) {
+    delete mappings[ieee];
+    saveMappings();
+  }
+  if (installCodes[ieee]) {
+    delete installCodes[ieee];
+    saveInstallCodes();
+  }
   res.json({ ok: true });
 });
 
