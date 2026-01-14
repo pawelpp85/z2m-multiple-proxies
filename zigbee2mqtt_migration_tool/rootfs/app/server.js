@@ -1072,8 +1072,13 @@ const requestRemoval = (ieee) => {
 };
 
 const startMigration = (ieee, force) => {
-  if (pendingMigrations.has(ieee)) {
-    return { status: "pending" };
+  const existing = pendingMigrations.get(ieee);
+  if (existing) {
+    const elapsed = Date.now() - existing.startedAt;
+    if (elapsed < 5000) {
+      return { status: "recent" };
+    }
+    pendingMigrations.delete(ieee);
   }
   const entry = deviceIndex.get(ieee);
   if (!entry) {

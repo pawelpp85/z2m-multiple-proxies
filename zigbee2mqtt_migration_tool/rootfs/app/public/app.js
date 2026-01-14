@@ -566,14 +566,22 @@ const handleAction = async (action, row) => {
 
   if (action === "migrate") {
     const result = await postJson("api/migrate", { ieee });
-    showToast(`Migrate: ${result.status || "sent"}`);
+    if (result.status === "recent") {
+      showToast("Migrate clicked a moment ago");
+    } else {
+      showToast(`Migrate: ${result.status || "sent"}`);
+    }
     loadState();
     return;
   }
 
   if (action === "force-migrate") {
     const result = await postJson("api/migrate/force", { ieee });
-    showToast(`Force migration: ${result.status || "sent"}`);
+    if (result.status === "recent") {
+      showToast("Force migration clicked a moment ago");
+    } else {
+      showToast(`Force migration: ${result.status || "sent"}`);
+    }
     loadState();
     return;
   }
