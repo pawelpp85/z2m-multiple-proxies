@@ -245,6 +245,17 @@ const isCoordinatorDevice = (backend, device) => {
   return !!ieee && !!coordinatorIeee && ieee === coordinatorIeee;
 };
 
+const buildCoordinatorIeeeSet = () => {
+  const set = new Set();
+  for (const backend of backends) {
+    const ieee = backend?.bridgeInfo?.coordinator?.ieee_address;
+    if (ieee) {
+      set.add(ieee);
+    }
+  }
+  return set;
+};
+
 const isInterviewCompleteDevice = (device, backend) => {
   if (!device || typeof device !== "object") {
     return false;
@@ -1213,6 +1224,10 @@ const rebuildDeviceIndex = () => {
         continue;
       }
       if (isCoordinatorDevice(backend, device)) {
+        if (mappings[device.ieee_address]) {
+          delete mappings[device.ieee_address];
+          mappingsChanged = true;
+        }
         continue;
       }
       const ieee = device.ieee_address;
@@ -1430,6 +1445,7 @@ const describeMigration = (migration) => {
 const buildDeviceList = () => {
   const combined = [];
   const seen = new Set();
+  const coordinatorIeees = buildCoordinatorIeeeSet();
 
   for (const ieee of Object.keys(mappings)) {
     seen.add(ieee);
@@ -1439,6 +1455,9 @@ const buildDeviceList = () => {
   }
 
   for (const ieee of seen) {
+    if (coordinatorIeees.has(ieee)) {
+      continue;
+    }
     const mapping = mappings[ieee] || { name: "" };
     const entry = deviceIndex.get(ieee);
     const migration = pendingMigrations.get(ieee);
