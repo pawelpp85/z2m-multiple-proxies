@@ -558,6 +558,12 @@ const renderHaInfo = (payload) => {
       `Affected: ${haAutomationPreview.affectedAutomations}`,
       `Replacements: ${haAutomationPreview.replacementHits}`,
     ];
+    if (typeof haAutomationPreview.deviceHits === "number") {
+      lines.push(`Device ID replacements: ${haAutomationPreview.deviceHits}`);
+    }
+    if (typeof haAutomationPreview.entityHits === "number") {
+      lines.push(`Entity ID replacements: ${haAutomationPreview.entityHits}`);
+    }
     const mappings = haAutomationPreview.deviceIdMap || [];
     if (mappings.length > 0) {
       lines.push("Device ID map:");

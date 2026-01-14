@@ -440,6 +440,7 @@ const buildHaSnapshotWithClient = async (client, ieee) => {
   }
   const snapshotEntities = deviceEntities.map((entry) => ({
     entity_id: entry.entity_id,
+    entity_registry_id: entry.id || "",
     unique_id: entry.unique_id,
     unique_id_base: baseSuffix ? entry.unique_id.slice(0, -baseSuffix.length) : entry.unique_id,
     original_name: entry.original_name || "",
@@ -478,16 +479,17 @@ const buildHaDeviceInfoWithClient = async (client, ieee) => {
   ]);
   const device = matchDeviceByIeee(devices || [], ieee);
   const currentDevice = formatHaDevice(device);
-  const currentEntities = device
-    ? (entities || [])
-        .filter((entry) => entry.device_id === device.id)
-        .map((entry) => ({
-          entity_id: entry.entity_id,
-          unique_id: entry.unique_id,
-          original_name: entry.original_name || "",
-          platform: entry.platform || "",
-        }))
-    : [];
+    const currentEntities = device
+      ? (entities || [])
+          .filter((entry) => entry.device_id === device.id)
+          .map((entry) => ({
+            entity_id: entry.entity_id,
+            entity_registry_id: entry.id || "",
+            unique_id: entry.unique_id,
+            original_name: entry.original_name || "",
+            platform: entry.platform || "",
+          }))
+      : [];
 
   const snapshot = haSnapshots[ieee] || null;
   const currentEntityById = new Map(currentEntities.map((entry) => [entry.entity_id, entry]));
@@ -737,41 +739,76 @@ const normalizeAutomationEntry = (entry) => {
   return null;
 };
 
-const rewriteDeviceIds = (value, deviceIdMap) => {
+const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap) => {
   if (Array.isArray(value)) {
     let changed = false;
     let hits = 0;
+    let deviceHits = 0;
+    let entityHits = 0;
     const next = value.map((item) => {
-      const result = rewriteDeviceIds(item, deviceIdMap);
+      const result = rewriteAutomationIds(item, deviceIdMap, entityRegistryIdMap);
       if (result.changed) {
         changed = true;
         hits += result.hits;
+        deviceHits += result.deviceHits;
+        entityHits += result.entityHits;
       }
       return result.value;
     });
-    return { value: next, changed, hits };
+    return { value: next, changed, hits, deviceHits, entityHits };
   }
   if (!value || typeof value !== "object") {
-    return { value, changed: false, hits: 0 };
+    return { value, changed: false, hits: 0, deviceHits: 0, entityHits: 0 };
   }
   let changed = false;
   let hits = 0;
+  let deviceHits = 0;
+  let entityHits = 0;
   const next = {};
   for (const [key, entry] of Object.entries(value)) {
     if (key === "device_id" && typeof entry === "string" && deviceIdMap.has(entry)) {
       next[key] = deviceIdMap.get(entry);
       changed = true;
       hits += 1;
+      deviceHits += 1;
       continue;
     }
-    const result = rewriteDeviceIds(entry, deviceIdMap);
+    if (key === "entity_id" && entityRegistryIdMap && entityRegistryIdMap.size > 0) {
+      if (typeof entry === "string" && entityRegistryIdMap.has(entry)) {
+        next[key] = entityRegistryIdMap.get(entry);
+        changed = true;
+        hits += 1;
+        entityHits += 1;
+        continue;
+      }
+      if (Array.isArray(entry)) {
+        let updated = false;
+        const mapped = entry.map((item) => {
+          if (typeof item === "string" && entityRegistryIdMap.has(item)) {
+            updated = true;
+            hits += 1;
+            entityHits += 1;
+            return entityRegistryIdMap.get(item);
+          }
+          return item;
+        });
+        if (updated) {
+          next[key] = mapped;
+          changed = true;
+          continue;
+        }
+      }
+    }
+    const result = rewriteAutomationIds(entry, deviceIdMap, entityRegistryIdMap);
     next[key] = result.value;
     if (result.changed) {
       changed = true;
       hits += result.hits;
+      deviceHits += result.deviceHits;
+      entityHits += result.entityHits;
     }
   }
-  return { value: next, changed, hits };
+  return { value: next, changed, hits, deviceHits, entityHits };
 };
 
 const buildDeviceIdMapWithClient = async (client) => {
@@ -800,6 +837,65 @@ const buildDeviceIdMapWithClient = async (client) => {
   return { map, details };
 };
 
+const buildEntityRegistryIdMapWithClient = async (client) => {
+  const [devices, entities] = await Promise.all([
+    client.request("config/device_registry/list"),
+    client.request("config/entity_registry/list"),
+  ]);
+  const map = new Map();
+  const details = [];
+  for (const [ieee, snapshot] of Object.entries(haSnapshots)) {
+    if (!snapshot || !snapshot.device || !snapshot.device.id || !snapshot.entities) {
+      continue;
+    }
+    const currentDevice = matchDeviceByIeee(devices || [], ieee);
+    if (!currentDevice || !currentDevice.id) {
+      continue;
+    }
+    const currentEntities = (entities || [])
+      .filter((entry) => entry.device_id === currentDevice.id)
+      .map((entry) => ({
+        entity_id: entry.entity_id,
+        entity_registry_id: entry.id || "",
+        unique_id: entry.unique_id,
+        original_name: entry.original_name || "",
+      }));
+    const currentSuffix = findCommonSuffix(currentEntities.map((entry) => entry.unique_id).filter(Boolean));
+    const suffix = currentSuffix && currentSuffix.startsWith("_") ? currentSuffix : "";
+    const currentByBase = new Map();
+    for (const entry of currentEntities) {
+      const base = suffix ? entry.unique_id.slice(0, -suffix.length) : entry.unique_id;
+      if (base) {
+        currentByBase.set(base, entry);
+      }
+    }
+    for (const saved of snapshot.entities) {
+      if (!saved.entity_registry_id) {
+        continue;
+      }
+      const baseKey = saved.unique_id_base || saved.unique_id;
+      const current =
+        (baseKey && currentByBase.get(baseKey)) ||
+        currentEntities.find((entry) => entry.unique_id === saved.unique_id) ||
+        currentEntities.find((entry) => entry.original_name === saved.original_name) ||
+        null;
+      if (!current || !current.entity_registry_id) {
+        continue;
+      }
+      if (current.entity_registry_id === saved.entity_registry_id) {
+        continue;
+      }
+      map.set(saved.entity_registry_id, current.entity_registry_id);
+      details.push({
+        ieee,
+        from: saved.entity_registry_id,
+        to: current.entity_registry_id,
+      });
+    }
+  }
+  return { map, details };
+};
+
 const buildDeviceIdMap = async () => {
   return withHaClient((client) => buildDeviceIdMapWithClient(client));
 };
@@ -809,14 +905,19 @@ const previewAutomationRewrite = async () => {
     const automationRaw = await fetchHaAutomations(client);
     const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean);
     const { map, details } = await buildDeviceIdMapWithClient(client);
+    const { map: entityMap, details: entityDetails } = await buildEntityRegistryIdMapWithClient(client);
     let affectedAutomations = 0;
     let replacementHits = 0;
+    let deviceHits = 0;
+    let entityHits = 0;
     const affected = [];
     for (const automation of automations) {
-      const result = rewriteDeviceIds(automation.config, map);
+      const result = rewriteAutomationIds(automation.config, map, entityMap);
       if (result.changed) {
         affectedAutomations += 1;
         replacementHits += result.hits;
+        deviceHits += result.deviceHits;
+        entityHits += result.entityHits;
         affected.push({
           id: automation.id || "",
           alias: automation.alias || "",
@@ -828,7 +929,7 @@ const previewAutomationRewrite = async () => {
       .map((entry) => `${entry.ieee}:${entry.from}->${entry.to}`)
       .join(", ");
     console.log(
-      `[HA] automation preview: automations=${automations.length} affected=${affectedAutomations} hits=${replacementHits} deviceMap=[${mapSummary}]`,
+      `[HA] automation preview: automations=${automations.length} affected=${affectedAutomations} hits=${replacementHits} deviceHits=${deviceHits} entityHits=${entityHits} deviceMap=[${mapSummary}] entityMapCount=${entityDetails.length}`,
     );
     if (affected.length > 0) {
       const list = affected
@@ -840,7 +941,10 @@ const previewAutomationRewrite = async () => {
       automations: automations.length,
       affectedAutomations,
       replacementHits,
+      deviceHits,
+      entityHits,
       deviceIdMap: details,
+      entityIdMap: entityDetails,
       affected,
     };
   });
@@ -851,10 +955,11 @@ const applyAutomationRewrite = async () => {
     const automationRaw = await fetchHaAutomations(client);
     const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean);
     const { map, details } = await buildDeviceIdMapWithClient(client);
+    const { map: entityMap } = await buildEntityRegistryIdMapWithClient(client);
     let updated = 0;
     let replacementHits = 0;
     for (const automation of automations) {
-      const result = rewriteDeviceIds(automation.config, map);
+      const result = rewriteAutomationIds(automation.config, map, entityMap);
       if (!result.changed) {
         continue;
       }
