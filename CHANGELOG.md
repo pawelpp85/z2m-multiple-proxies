@@ -18,5 +18,8 @@
 - Migration tool: migration status UI, pairing safety checks, and install code auto-add on migrate.
 - Migration tool: device mappings usability (filters, delete offline entries, compact entity table, links).
 
+## 1.1.1
+- Migration tool: never auto-delete mappings when coordinators or devices disappear.
+
 ## 1.0.0
 - Initial release.

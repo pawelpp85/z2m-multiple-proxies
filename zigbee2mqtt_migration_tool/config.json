@@ -1,6 +1,6 @@
 {
   "name": "Zigbee2MQTT Migration tool",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "slug": "zigbee2mqtt_migration_tool",
   "description": "Migration helper that remembers IEEE addresses and device names across multiple Zigbee2MQTT instances.",
   "url": "https://github.com/pawelpp85/z2m-multiple-proxies",

@@ -1224,10 +1224,6 @@ const rebuildDeviceIndex = () => {
         continue;
       }
       if (isCoordinatorDevice(backend, device)) {
-        if (mappings[device.ieee_address]) {
-          delete mappings[device.ieee_address];
-          mappingsChanged = true;
-        }
         continue;
       }
       const ieee = device.ieee_address;
