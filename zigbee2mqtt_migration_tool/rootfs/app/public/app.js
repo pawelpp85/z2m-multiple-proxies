@@ -41,6 +41,33 @@ const scanAvailable =
   "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
 const openInstallEditors = new Set();
 const installDrafts = new Map();
+const storageKey = "z2m_migration_filters";
+
+const loadFilters = () => {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) {
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.search === "string") {
+      elements.deviceSearch.value = parsed.search;
+    }
+    if (parsed && Array.isArray(parsed.instances)) {
+      selectedInstances = new Set(parsed.instances);
+    }
+  } catch (error) {
+    console.warn("Failed to load filters", error);
+  }
+};
+
+const saveFilters = () => {
+  const payload = {
+    search: elements.deviceSearch.value || "",
+    instances: [...selectedInstances],
+  };
+  localStorage.setItem(storageKey, JSON.stringify(payload));
+};
 
 const showToast = (message) => {
   elements.toast.textContent = message;
@@ -325,6 +352,7 @@ const renderInstanceFilters = (backends) => {
   }
   if (selectedInstances.size === 0) {
     backends.forEach((backend) => selectedInstances.add(backend.label));
+    saveFilters();
   }
   elements.instanceFilters.innerHTML = backends
     .map(
@@ -667,6 +695,7 @@ elements.deviceTable.addEventListener("change", async (event) => {
 });
 
 elements.deviceSearch.addEventListener("input", () => {
+  saveFilters();
   renderTable(lastState?.devices || [], lastState?.migrationAvailable, lastState?.backends || []);
   renderLogs(lastLogs);
 });
@@ -685,6 +714,7 @@ elements.instanceFilters.addEventListener("change", (event) => {
   } else {
     selectedInstances.delete(label);
   }
+  saveFilters();
   renderTable(lastState?.devices || [], lastState?.migrationAvailable, lastState?.backends || []);
 });
 
@@ -754,6 +784,7 @@ elements.mappingApply.addEventListener("click", async () => {
   showNextMapping();
 });
 
+loadFilters();
 loadState();
 loadLogs();
 setInterval(loadState, 4000);
