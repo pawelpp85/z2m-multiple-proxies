@@ -17,6 +17,29 @@ Before migrating, make sure an install code is stored for the device. Install co
 Reset mappings reloads current names from all instances and removes mappings for devices not present in any instance.
 Apply mappings checks for mismatched names and lets you confirm proposed changes.
 
+## Home Assistant IDs (HA IDs)
+The HA IDs panel snapshots and restores Home Assistant identifiers and can repair automations that reference stale IDs.
+
+### Concepts
+- **Device ID**: Internal Home Assistant device registry ID (32‑char hex). Can change after migration.
+- **Entity ID**: Human‑readable entity id (`climate.living_room_thermostat`). Can be renamed and restored.
+- **Entity registry ID**: Internal entity registry ID (32‑char hex) used by device triggers/actions.
+- **Unique ID**: Integration unique id (from Z2M). Cannot be edited in HA; used to match entities.
+
+### What HA IDs shows
+- **Status**: snapshot timestamp + whether the device was found in HA.
+- **Snapshot**: saved device ID + identifiers.
+- **Current device**: live device ID + identifiers (with link to HA device page).
+- **Entities**: saved vs current entity_id and registry IDs with status.
+- **Automations**: preview of which automations will be updated and for which devices.
+
+### HA IDs buttons
+- **Save snapshot**: saves HA device + entity IDs. Required before migration.
+- **Restore entity IDs**: renames HA `entity_id` back to snapshot values (does not change device_id).
+- **Preview device_id rewrite**: scans automations and shows planned changes (all devices with snapshots).
+- **Rewrite device IDs**: applies device/entity ID rewrites to all affected automations.
+- **Fix automations for this device**: applies rewrites only for the currently opened device.
+
 ## Features
 - Persistent IEEE -> name mapping stored in `/data/ieee-map.json`
 - Install codes stored in `/data/install-codes.json` with apply-to-instance action
@@ -48,7 +71,7 @@ Optional Home Assistant integration:
 ## Notes
 - Install code “Add to…” sends `bridge/request/install_code/add` to the selected instance.
 - QR scanning requires `BarcodeDetector` support in the browser.
-- If Home Assistant integration is configured, clicking **Migrate** will attempt to capture a pre-migration snapshot for entity_id restore.
+- If Home Assistant integration is configured, clicking **Migrate**/**Force migration** captures a pre‑migration snapshot and will not proceed without it.
 
 ## Development workflow
 After any change, bump the next beta version (e.g. `1.0.1b2`), commit, and run `git push`.

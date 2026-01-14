@@ -10,6 +10,7 @@ const elements = {
   overviewEnd: document.getElementById("overviewEnd"),
   overviewLqi: document.getElementById("overviewLqi"),
   deviceTable: document.getElementById("deviceTable"),
+  coordinatorTable: document.getElementById("coordinatorTable"),
   activityLog: document.getElementById("activityLog"),
   mappingCount: document.getElementById("mappingCount"),
   toast: document.getElementById("toast"),
@@ -374,6 +375,37 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
   });
 };
 
+const renderCoordinators = (coordinators = []) => {
+  if (!elements.coordinatorTable) {
+    return;
+  }
+  if (!coordinators || coordinators.length === 0) {
+    elements.coordinatorTable.innerHTML = "<p class=\"subtitle\">No coordinator data yet.</p>";
+    return;
+  }
+  const rows = [
+    `<div class="row header">
+      <div>Instance</div>
+      <div>Type</div>
+      <div>IEEE address</div>
+      <div>Revision</div>
+      <div>Serial</div>
+    </div>`,
+  ];
+  coordinators.forEach((entry) => {
+    const serial = [entry.adapter, entry.serialPort].filter(Boolean).join(" · ");
+    rows.push(`
+      <div class="row data coordinator-row">
+        <div>${entry.label || entry.id}</div>
+        <div>${entry.type || "-"}</div>
+        <div class="mono">${entry.ieee || "-"}</div>
+        <div>${entry.revision || "-"}</div>
+        <div class="mono">${serial || "-"}</div>
+      </div>
+    `);
+  });
+  elements.coordinatorTable.innerHTML = rows.join("");
+};
 const filterLogs = (logs) => {
   const query = elements.deviceSearch.value.trim().toLowerCase();
   if (!query || !lastState || !lastState.devices) {
@@ -703,6 +735,7 @@ const loadState = async () => {
     renderPairingControl(data.pairing || [], data.backends || []);
     renderInstanceFilters(data.backends || []);
     renderTable(data.devices || [], data.migrationAvailable, data.backends || []);
+    renderCoordinators(data.coordinators || []);
     elements.mappingCount.textContent = `${data.mappingsCount || 0} mappings`;
   } catch (error) {
     showToast("Failed to load state");

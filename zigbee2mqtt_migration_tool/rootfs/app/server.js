@@ -1292,6 +1292,36 @@ const getActivePairingBackend = () => {
   return null;
 };
 
+const formatCoordinatorMeta = (meta) => {
+  if (!meta || typeof meta !== "object") {
+    return { revision: "", ieee: "" };
+  }
+  const revision = meta.revision || meta.Revision || meta.firmware || "";
+  return { revision };
+};
+
+const buildCoordinatorList = () => {
+  const coordinators = [];
+  for (const backend of backends) {
+    const info = backend.bridgeInfo;
+    const coordinator = info && info.coordinator ? info.coordinator : null;
+    if (!coordinator) {
+      continue;
+    }
+    const meta = formatCoordinatorMeta(coordinator.meta || {});
+    coordinators.push({
+      id: backend.id,
+      label: backend.label,
+      type: coordinator.type || "",
+      ieee: coordinator.ieee_address || "",
+      revision: meta.revision || "",
+      serialPort: info?.config?.serial?.port || "",
+      adapter: info?.config?.serial?.adapter || "",
+    });
+  }
+  return coordinators;
+};
+
 const describeMigration = (migration) => {
   if (!migration) {
     return null;
@@ -1769,12 +1799,14 @@ app.get("/api/state", (req, res) => {
   try {
     const pairing = buildPairingStatus();
     const devices = buildDeviceList();
+    const coordinators = buildCoordinatorList();
     res.json({
       generatedAt: nowIso(),
       overview: summarizeOverview(),
       pairing,
       migrationAvailable: pairing.length > 0,
       devices,
+      coordinators,
       mappingsCount: Object.keys(mappings).length,
       backends: backends.map((backend) => ({
         id: backend.id,

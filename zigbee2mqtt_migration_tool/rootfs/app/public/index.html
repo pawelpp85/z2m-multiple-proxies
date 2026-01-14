@@ -39,7 +39,15 @@
             </div>
             <div class="instruction-block">
               <h4>Home Assistant IDs</h4>
-              <p>Use the <strong>HA IDs</strong> button to capture a snapshot before migration, restore entity_id values after rename, and preview automation device_id rewrites.</p>
+              <p><strong>Device ID</strong> is the internal HA device registry ID (32‑char hex). <strong>Entity ID</strong> is the human-readable name (e.g. <code>climate.living_room</code>). <strong>Entity registry ID</strong> is a 32‑char hex used by device triggers/actions.</p>
+              <p><strong>HA IDs</strong> opens the panel for a device.</p>
+              <ul>
+                <li><strong>Save snapshot</strong>: store device/entity IDs before migration (required).</li>
+                <li><strong>Restore entity IDs</strong>: rename human‑readable entity IDs back to snapshot values.</li>
+                <li><strong>Preview device_id rewrite</strong>: scan automations and show planned changes (all devices with snapshots).</li>
+                <li><strong>Rewrite device IDs</strong>: apply automation changes for all snapshot devices.</li>
+                <li><strong>Fix automations for this device</strong>: apply changes only for the currently opened device.</li>
+              </ul>
             </div>
           </details>
         </div>
@@ -109,6 +117,24 @@
             <button class="sort" data-sort="lqi">LQI</button>
             <button class="sort" data-sort="online">Online</button>
             <div>Actions</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Coordinators</h2>
+            <p>Coordinator details pulled from each Zigbee2MQTT instance.</p>
+          </div>
+        </div>
+        <div class="table coordinators" id="coordinatorTable">
+          <div class="row header">
+            <div>Instance</div>
+            <div>Type</div>
+            <div>IEEE address</div>
+            <div>Revision</div>
+            <div>Serial</div>
           </div>
         </div>
       </section>
