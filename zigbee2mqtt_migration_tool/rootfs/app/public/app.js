@@ -281,6 +281,9 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
     const lastSeenHtml = lastSeen
       ? `<div class="last-seen" title="Last seen">${lastSeen}</div>`
       : "";
+    const migrationStatus = device.migrationStatus
+      ? `<div class="migration-status">${device.migrationStatus}</div>`
+      : "";
     rows.push(`
       <div class="row data ${mismatch ? "mismatch" : ""}" data-ieee="${device.ieee}">
         <div class="name-cell">
@@ -294,6 +297,7 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
             <input type="text" value="${device.mappedName}" data-field="name" data-original="${device.mappedName}" />
             <button class="ghost save-button hidden" data-action="save">Save</button>
           </div>
+          ${migrationStatus}
         </div>
         <div class="mono">${device.ieee}</div>
         <div class="install-cell">

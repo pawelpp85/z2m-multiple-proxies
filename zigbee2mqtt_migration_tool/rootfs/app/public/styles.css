@@ -322,6 +322,12 @@ h1 {
   align-items: center;
 }
 
+.migration-status {
+  font-size: 11px;
+  color: #9fc5ff;
+  font-weight: 600;
+}
+
 .install-cell {
   display: flex;
   flex-direction: column;

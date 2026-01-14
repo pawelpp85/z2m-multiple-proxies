@@ -1292,6 +1292,25 @@ const getActivePairingBackend = () => {
   return null;
 };
 
+const describeMigration = (migration) => {
+  if (!migration) {
+    return null;
+  }
+  if (!migration.leftOld) {
+    return "Removing from source";
+  }
+  if (migration.configuring && !migration.configured) {
+    return "Configuring on target";
+  }
+  if (migration.configured && !migration.renameSent) {
+    return "Configuration complete";
+  }
+  if (migration.renameSent && !migration.blocklistRemoved && migration.force) {
+    return "Finishing migration";
+  }
+  return "Migrating";
+};
+
 const buildDeviceList = () => {
   const combined = [];
   const seen = new Set();
@@ -1306,6 +1325,7 @@ const buildDeviceList = () => {
   for (const ieee of seen) {
     const mapping = mappings[ieee] || { name: "" };
     const entry = deviceIndex.get(ieee);
+    const migration = pendingMigrations.get(ieee);
     const mappingName = mapping.name ? mapping.name.trim() : "";
     const currentName = entry ? firstKnownName(entry) : "";
     const nameMismatch =
@@ -1328,6 +1348,8 @@ const buildDeviceList = () => {
       linkquality: entry ? entry.linkquality : null,
       lastSeen: entry ? entry.lastSeen : null,
       installCode: installCodes[ieee] || "",
+      migrationStatus: migration ? describeMigration(migration) : null,
+      migrationTarget: migration ? migration.targetBackendId : null,
     });
   }
 
@@ -2246,10 +2268,16 @@ app.post("/api/migrate", async (req, res) => {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
   }
+  const { url, token } = getHaConfig();
+  if (!url || !token) {
+    res.status(400).json({ error: "Home Assistant is not configured; snapshot required" });
+    return;
+  }
   try {
     await saveHaSnapshotForIeee(ieee);
   } catch (error) {
-    console.warn(`[HA] Snapshot failed for ${ieee}: ${error.message}`);
+    res.status(500).json({ error: `HA snapshot failed: ${error.message}` });
+    return;
   }
   res.json(startMigration(ieee, false));
 });
@@ -2260,10 +2288,16 @@ app.post("/api/migrate/force", async (req, res) => {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
   }
+  const { url, token } = getHaConfig();
+  if (!url || !token) {
+    res.status(400).json({ error: "Home Assistant is not configured; snapshot required" });
+    return;
+  }
   try {
     await saveHaSnapshotForIeee(ieee);
   } catch (error) {
-    console.warn(`[HA] Snapshot failed for ${ieee}: ${error.message}`);
+    res.status(500).json({ error: `HA snapshot failed: ${error.message}` });
+    return;
   }
   res.json(startMigration(ieee, true));
 });
