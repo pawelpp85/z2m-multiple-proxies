@@ -424,18 +424,18 @@ const formatIdentifiers = (items) => {
     .join(", ");
 };
 
-const buildHaEntityUrl = (entityId) => {
-  if (!haBaseUrl || !entityId) {
-    return "";
-  }
-  return `${haBaseUrl.replace(/\/$/, "")}/config/entities?entity_id=${encodeURIComponent(entityId)}`;
-};
-
 const buildHaAutomationUrl = (automationId) => {
   if (!haBaseUrl || !automationId) {
     return "";
   }
   return `${haBaseUrl.replace(/\/$/, "")}/config/automation/edit/${encodeURIComponent(automationId)}`;
+};
+
+const buildHaDeviceUrl = (deviceId) => {
+  if (!haBaseUrl || !deviceId) {
+    return "";
+  }
+  return `${haBaseUrl.replace(/\/$/, "")}/config/devices/device/${encodeURIComponent(deviceId)}`;
 };
 
 const renderHaInfo = (payload) => {
@@ -488,6 +488,7 @@ const renderHaInfo = (payload) => {
   }
 
   if (current) {
+    const deviceUrl = buildHaDeviceUrl(current.id);
     const deviceLines = [
       `Device ID: ${current.id || "-"}`,
       `Name: ${current.name || "-"}`,
@@ -495,7 +496,10 @@ const renderHaInfo = (payload) => {
       `Model: ${current.model || "-"}`,
       `Identifiers: ${formatIdentifiers(current.identifiers)}`,
     ];
-    elements.haDeviceInfo.textContent = deviceLines.join("\n");
+    const link = deviceUrl
+      ? `<br><a class="ha-link" href="${deviceUrl}" target="_blank" rel="noreferrer">Open device</a>`
+      : "";
+    elements.haDeviceInfo.innerHTML = `${deviceLines.join("<br>")}${link}`;
   } else {
     elements.haDeviceInfo.textContent = "Device not found in Home Assistant.";
   }
@@ -510,17 +514,14 @@ const renderHaInfo = (payload) => {
         `<div class="ha-row header">
           <div>Current entity_id</div>
           <div>Unique ID</div>
-          <div>Open</div>
           <div>Status</div>
         </div>`,
       ];
       currentEntities.forEach((item) => {
-        const entityUrl = buildHaEntityUrl(item.entity_id);
         rows.push(`
           <div class="ha-row">
             <div class="mono">${item.entity_id || "-"}</div>
             <div class="mono">${item.unique_id || "-"}</div>
-            <div>${entityUrl ? `<a class="ha-link" href="${entityUrl}" target="_blank" rel="noreferrer">Open</a>` : "-"}</div>
             <div class="ha-status ok">current</div>
           </div>
         `);
@@ -533,21 +534,17 @@ const renderHaInfo = (payload) => {
         <div>Saved entity_id</div>
         <div>Current entity_id</div>
         <div>Unique ID base</div>
-        <div>Open</div>
         <div>Status</div>
       </div>`,
     ];
     plan.forEach((item) => {
       const status = item.status || "missing";
       const base = item.unique_id_base || item.unique_id || "-";
-      const linkId = item.current_entity_id || item.desired_entity_id;
-      const entityUrl = buildHaEntityUrl(linkId);
       rows.push(`
         <div class="ha-row">
           <div class="mono">${item.desired_entity_id || "-"}</div>
           <div class="mono">${item.current_entity_id || "-"}</div>
           <div class="mono">${base}</div>
-          <div>${entityUrl ? `<a class="ha-link" href="${entityUrl}" target="_blank" rel="noreferrer">Open</a>` : "-"}</div>
           <div class="ha-status ${status}">${status}</div>
         </div>
       `);

@@ -692,8 +692,24 @@ const fetchHaAutomations = async (client) => {
     if (!isUnknownHaCommand(error)) {
       throw error;
     }
-    const result = await haRestRequest("GET", "/api/config/automation/config");
-    return Array.isArray(result) ? result : [];
+    const candidates = [
+      "/api/config/automation/config",
+      "/api/config/automation",
+      "/api/config/automation/configuration",
+    ];
+    for (const pathName of candidates) {
+      try {
+        const result = await haRestRequest("GET", pathName);
+        if (Array.isArray(result)) {
+          return result;
+        }
+      } catch (restError) {
+        if (!String(restError.message || "").includes("404")) {
+          throw restError;
+        }
+      }
+    }
+    throw new Error("Home Assistant REST error 404");
   }
 };
 
