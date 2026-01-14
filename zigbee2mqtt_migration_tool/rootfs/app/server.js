@@ -479,20 +479,33 @@ const sendRemove = (backend, ieee, force) => {
   });
 };
 
+const getBlocklist = (backend) => {
+  const list = backend && backend.bridgeInfo && backend.bridgeInfo.config && backend.bridgeInfo.config.blocklist;
+  return Array.isArray(list) ? list : [];
+};
+
 const sendBlocklistAdd = (backend, ieee) => {
+  const current = getBlocklist(backend);
+  const next = current.includes(ieee) ? current : [...current, ieee];
   backend.send({
-    topic: "bridge/request/device/blocklist/add",
+    topic: "bridge/request/options",
     payload: {
-      ieee_address: ieee,
+      options: {
+        blocklist: next,
+      },
     },
   });
 };
 
 const sendBlocklistRemove = (backend, ieee) => {
+  const current = getBlocklist(backend);
+  const next = current.filter((item) => item !== ieee);
   backend.send({
-    topic: "bridge/request/device/blocklist/remove",
+    topic: "bridge/request/options",
     payload: {
-      ieee_address: ieee,
+      options: {
+        blocklist: next,
+      },
     },
   });
 };
