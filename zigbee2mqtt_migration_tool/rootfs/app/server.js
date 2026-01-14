@@ -553,7 +553,7 @@ const updateMigrations = () => {
         });
       }
 
-      if (migration.force && migration.configured && !migration.renameSent && target && device) {
+      if (migration.configured && !migration.renameSent && target && device) {
         const mapping = mappings[ieee];
         const desired = mapping && mapping.name ? mapping.name.trim() : "";
         const current = device.friendly_name;
