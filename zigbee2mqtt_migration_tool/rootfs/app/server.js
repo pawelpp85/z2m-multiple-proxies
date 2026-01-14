@@ -12,8 +12,8 @@ const RECONNECT_DELAY_MS = 5000;
 const MAX_ACTIVITY_ENTRIES = 250;
 const ACTIVITY_TTL_MS = 3 * 60 * 1000;
 const LAST_SEEN_ONLINE_MS = 10 * 60 * 1000;
-const RENAME_COOLDOWN_MS = 60000;
 const REMOVE_TIMEOUT_MS = 15000;
+const MIGRATION_TTL_MS = 60 * 60 * 1000;
 
 const readOptions = () => {
   try {
@@ -73,8 +73,8 @@ let deviceIndex = new Map();
 const deviceNameToIeee = new Map();
 let installCodes = {};
 const recentActivity = [];
-const pendingRenames = new Map();
 const pendingRemovals = new Map();
+const pendingMigrations = new Map();
 
 const nowIso = () => new Date().toISOString();
 
@@ -155,11 +155,21 @@ const normalizeDeviceType = (device) => {
   return device.type;
 };
 
-const isInterviewComplete = (entry, backend, name) => {
-  if (entry && entry.interviewCompleted) {
+const isInterviewCompleteDevice = (device, backend) => {
+  if (!device || typeof device !== "object") {
+    return false;
+  }
+  if (device.interview_completed === true) {
     return true;
   }
-  if (!backend || !name || !backend.deviceStates) {
+  if (device.interview_state === "successful" || device.interview_status === "successful") {
+    return true;
+  }
+  if (!backend || !backend.deviceStates) {
+    return false;
+  }
+  const name = device.friendly_name;
+  if (!name) {
     return false;
   }
   const state = backend.deviceStates.get(name);
@@ -280,7 +290,7 @@ const rebuildDeviceIndex = () => {
     saveMappings();
   }
   resolveRemovals();
-  scheduleAutoRename();
+  updateMigrations();
 };
 
 const resolveRemovals = () => {
@@ -292,54 +302,12 @@ const resolveRemovals = () => {
   }
 };
 
-const scheduleAutoRename = () => {
-  for (const [ieee, entry] of deviceIndex.entries()) {
-    const mapping = mappings[ieee];
-    if (!mapping || !mapping.name) {
-      continue;
-    }
-    const currentName = firstKnownName(entry);
-    if (!currentName || currentName === mapping.name) {
-      continue;
-    }
-    const backendId = firstBackendId(entry);
-    if (!backendId) {
-      continue;
-    }
-    const backend = backends.find((candidate) => candidate.id === backendId);
-    if (!backend) {
-      continue;
-    }
-    if (!isInterviewComplete(entry, backend, currentName)) {
-      continue;
-    }
-    const pending = pendingRenames.get(ieee);
-    const now = Date.now();
-    if (pending && pending.name === mapping.name && now - pending.lastAttempt < RENAME_COOLDOWN_MS) {
-      continue;
-    }
-
-    sendRename(backend, currentName, mapping.name);
-    pushActivity({
-      time: nowIso(),
-      type: "rename",
-      message: `${backend.label} - Auto-rename: ${currentName} -> ${mapping.name}`,
-    });
-    pendingRenames.set(ieee, { name: mapping.name, lastAttempt: now });
-  }
-};
-
 const firstKnownName = (entry) => {
   const backendIds = Object.keys(entry.namesByBackend || {});
   if (backendIds.length === 0) {
     return "";
   }
   return entry.namesByBackend[backendIds[0]];
-};
-
-const firstBackendId = (entry) => {
-  const backendIds = Object.keys(entry.namesByBackend || {});
-  return backendIds[0] || null;
 };
 
 const summarizeOverview = () => {
@@ -399,9 +367,17 @@ const buildDeviceList = () => {
   for (const ieee of seen) {
     const mapping = mappings[ieee] || { name: "" };
     const entry = deviceIndex.get(ieee);
+    const mappingName = mapping.name ? mapping.name.trim() : "";
+    const currentName = entry ? firstKnownName(entry) : "";
+    const nameMismatch =
+      !!entry &&
+      !!mappingName &&
+      Object.values(entry.namesByBackend || {}).some((name) => name && name !== mappingName);
     combined.push({
       ieee,
-      mappedName: mapping.name || "",
+      mappedName: mappingName,
+      currentName,
+      nameMismatch,
       instances: entry ? entry.instances : [],
       model: entry ? entry.model : "",
       vendor: entry ? entry.vendor : "",
@@ -483,14 +459,132 @@ const sendRename = (backend, fromName, toName) => {
   });
 };
 
-const sendRemove = (backend, ieee) => {
+const sendRemove = (backend, ieee, force) => {
   backend.send({
     topic: "bridge/request/device/remove",
     payload: {
       id: ieee,
-      force: false,
+      force: !!force,
     },
   });
+};
+
+const sendBlocklistAdd = (backend, ieee) => {
+  backend.send({
+    topic: "bridge/request/device/blocklist/add",
+    payload: {
+      ieee_address: ieee,
+    },
+  });
+};
+
+const sendBlocklistRemove = (backend, ieee) => {
+  backend.send({
+    topic: "bridge/request/device/blocklist/remove",
+    payload: {
+      ieee_address: ieee,
+    },
+  });
+};
+
+const updateMigrations = () => {
+  const now = Date.now();
+  for (const [ieee, migration] of pendingMigrations.entries()) {
+    if (now - migration.startedAt > MIGRATION_TTL_MS) {
+      pendingMigrations.delete(ieee);
+      pushActivity({
+        time: nowIso(),
+        type: "migration",
+        message: `Migration timed out for ${ieee}`,
+      });
+      continue;
+    }
+
+    const sourceBackends = migration.sourceBackendIds
+      .map((id) => backends.find((backend) => backend.id === id))
+      .filter(Boolean);
+    const inSource = sourceBackends.some(
+      (backend) => backend.devicesByIeee && backend.devicesByIeee.has(ieee),
+    );
+    if (!migration.leftOld && !inSource) {
+      migration.leftOld = true;
+      pushActivity({
+        time: nowIso(),
+        type: "migration",
+        message: `Device ${ieee} left ${migration.sourceLabels.join(", ")}`,
+      });
+    }
+
+    if (!migration.targetBackendId) {
+      const target = backends.find(
+        (backend) =>
+          !migration.sourceBackendIds.includes(backend.id) &&
+          backend.devicesByIeee &&
+          backend.devicesByIeee.has(ieee),
+      );
+      if (target) {
+        migration.targetBackendId = target.id;
+        pushActivity({
+          time: nowIso(),
+          type: "migration",
+          message: `Device ${ieee} joined ${target.label}`,
+        });
+      }
+    }
+
+    if (migration.targetBackendId) {
+      const target = backends.find((backend) => backend.id === migration.targetBackendId);
+      const device = target && target.devicesByIeee ? target.devicesByIeee.get(ieee) : null;
+      const interviewComplete = target && device ? isInterviewCompleteDevice(device, target) : false;
+      if (!migration.configuring && !interviewComplete) {
+        migration.configuring = true;
+        pushActivity({
+          time: nowIso(),
+          type: "migration",
+          message: `Device ${ieee} is configuring on ${target.label}`,
+        });
+      }
+      if (!migration.configured && interviewComplete) {
+        migration.configured = true;
+        pushActivity({
+          time: nowIso(),
+          type: "migration",
+          message: `Device ${ieee} configuration finished on ${target.label}`,
+        });
+      }
+
+      if (migration.force && migration.configured && !migration.renameSent && target && device) {
+        const mapping = mappings[ieee];
+        const desired = mapping && mapping.name ? mapping.name.trim() : "";
+        const current = device.friendly_name;
+        if (desired && current && desired !== current) {
+          sendRename(target, current, desired);
+          pushActivity({
+            time: nowIso(),
+            type: "rename",
+            message: `${target.label} - Rename command sent: ${current} -> ${desired}`,
+          });
+        }
+        migration.renameSent = true;
+      }
+
+      if (migration.force && migration.configured && !migration.blocklistRemoved) {
+        for (const backend of sourceBackends) {
+          sendBlocklistRemove(backend, ieee);
+          pushActivity({
+            time: nowIso(),
+            type: "migration",
+            message: `${backend.label} - Blocklist remove command sent for ${ieee}`,
+          });
+        }
+        migration.blocklistRemoved = true;
+      }
+
+      if (migration.configured && (!migration.force || migration.blocklistRemoved)) {
+        pendingMigrations.delete(ieee);
+      }
+    }
+  }
 };
 
 class Backend {
@@ -507,6 +601,7 @@ class Backend {
     this.permitJoinEndsAt = null;
     this.deviceStates = new Map();
     this.deviceSeenAt = new Map();
+    this.devicesByIeee = new Map();
   }
 
   connect() {
@@ -578,6 +673,12 @@ class Backend {
         case "bridge/devices":
           this.devicesRaw = Array.isArray(data.payload) ? data.payload : [];
           console.log(`[${this.label}] bridge/devices ${this.devicesRaw.length}`);
+          this.devicesByIeee = new Map();
+          for (const device of this.devicesRaw) {
+            if (device && device.ieee_address) {
+              this.devicesByIeee.set(device.ieee_address, device);
+            }
+          }
           rebuildDeviceIndex();
           return;
         case "bridge/info":
@@ -663,7 +764,7 @@ class Backend {
         Object.prototype.hasOwnProperty.call(payload, "interview_state") ||
         Object.prototype.hasOwnProperty.call(payload, "interview_status")
       ) {
-        scheduleAutoRename();
+        updateMigrations();
       }
     }
   }
@@ -741,7 +842,6 @@ app.post("/api/mappings", (req, res) => {
     updatedAt: nowIso(),
   };
   saveMappings();
-  scheduleAutoRename();
   res.json({ ok: true });
 });
 
@@ -889,9 +989,43 @@ app.post("/api/mappings/apply-one", (req, res) => {
   pushActivity({
     time: nowIso(),
     type: "rename",
-    message: `${backend.label} - Apply mapping: ${current} -> ${desired}`,
+    message: `${backend.label} - Rename command sent: ${current} -> ${desired}`,
   });
   res.json({ ok: true, applied: true });
+});
+
+app.post("/api/mappings/rename-to", (req, res) => {
+  const { ieee } = req.body || {};
+  if (!ieee || typeof ieee !== "string") {
+    res.status(400).json({ error: "Missing IEEE address" });
+    return;
+  }
+  const mapping = mappings[ieee];
+  const desired = mapping && mapping.name ? mapping.name.trim() : "";
+  if (!desired) {
+    res.status(400).json({ error: "Missing mapping name" });
+    return;
+  }
+  const entry = deviceIndex.get(ieee);
+  if (!entry) {
+    res.status(404).json({ error: "Device not found" });
+    return;
+  }
+  let sent = 0;
+  for (const backend of backends) {
+    const current = entry.namesByBackend[backend.id];
+    if (!current || current === desired) {
+      continue;
+    }
+    sendRename(backend, current, desired);
+    pushActivity({
+      time: nowIso(),
+      type: "rename",
+      message: `${backend.label} - Rename command sent: ${current} -> ${desired}`,
+    });
+    sent += 1;
+  }
+  res.json({ ok: true, sent });
 });
 
 const requestRemoval = (ieee) => {
@@ -909,7 +1043,7 @@ const requestRemoval = (ieee) => {
 
     for (const backend of backends) {
       if (entry.namesByBackend[backend.id]) {
-        sendRemove(backend, ieee);
+        sendRemove(backend, ieee, false);
       }
     }
 
@@ -927,14 +1061,70 @@ const requestRemoval = (ieee) => {
   });
 };
 
-app.post("/api/migrate", async (req, res) => {
+const startMigration = (ieee, force) => {
+  if (pendingMigrations.has(ieee)) {
+    return { status: "pending" };
+  }
+  const entry = deviceIndex.get(ieee);
+  if (!entry) {
+    return { status: "not_found" };
+  }
+  const sourceBackends = backends.filter((backend) => entry.namesByBackend[backend.id]);
+  if (sourceBackends.length === 0) {
+    return { status: "not_found" };
+  }
+  const sourceLabels = sourceBackends.map((backend) => backend.label);
+  pendingMigrations.set(ieee, {
+    ieee,
+    force: !!force,
+    startedAt: Date.now(),
+    sourceBackendIds: sourceBackends.map((backend) => backend.id),
+    sourceLabels,
+    leftOld: false,
+    targetBackendId: null,
+    configuring: false,
+    configured: false,
+    renameSent: false,
+    blocklistRemoved: false,
+  });
+
+  for (const backend of sourceBackends) {
+    sendRemove(backend, ieee, !!force);
+    pushActivity({
+      time: nowIso(),
+      type: "migration",
+      message: `${backend.label} - Remove command sent for ${ieee}${force ? " (force)" : ""}`,
+    });
+  }
+  if (force) {
+    for (const backend of sourceBackends) {
+      sendBlocklistAdd(backend, ieee);
+      pushActivity({
+        time: nowIso(),
+        type: "migration",
+        message: `${backend.label} - Blocklist add command sent for ${ieee}`,
+      });
+    }
+  }
+  return { status: "started" };
+};
+
+app.post("/api/migrate", (req, res) => {
   const { ieee } = req.body || {};
   if (!ieee || typeof ieee !== "string") {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
   }
-  const result = await requestRemoval(ieee);
-  res.json(result);
+  res.json(startMigration(ieee, false));
+});
+
+app.post("/api/migrate/force", (req, res) => {
+  const { ieee } = req.body || {};
+  if (!ieee || typeof ieee !== "string") {
+    res.status(400).json({ error: "Missing IEEE address" });
+    return;
+  }
+  res.json(startMigration(ieee, true));
 });
 
 app.post("/api/remove", async (req, res) => {

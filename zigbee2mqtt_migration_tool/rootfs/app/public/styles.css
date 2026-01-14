@@ -258,6 +258,11 @@ h1 {
   border: 1px solid var(--stroke);
 }
 
+.row.data.mismatch {
+  border-color: rgba(255, 138, 60, 0.7);
+  background: rgba(255, 138, 60, 0.12);
+}
+
 .row .mono {
   font-family: var(--mono);
   font-size: 12px;
@@ -275,6 +280,21 @@ h1 {
 }
 
 .name-cell {
+  display: grid;
+  gap: 6px;
+}
+
+.name-current {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.name-current span {
+  color: #ffd2a6;
+  font-weight: 600;
+}
+
+.name-edit {
   display: flex;
   gap: 6px;
   align-items: center;
@@ -414,6 +434,12 @@ h1 {
   gap: 8px;
 }
 
+.actions button[data-action="force-migrate"] {
+  background: rgba(124, 18, 26, 0.55);
+  color: rgba(255, 230, 230, 0.95);
+  border: 1px solid rgba(255, 142, 142, 0.5);
+}
+
 .actions button[data-action="migrate"] {
   background: rgba(124, 18, 26, 0.85);
   color: rgba(255, 230, 230, 0.95);
@@ -519,6 +545,11 @@ button:disabled {
 .activity-item.rename {
   border-color: rgba(93, 168, 255, 0.45);
   background: rgba(93, 168, 255, 0.12);
+}
+
+.activity-item.migration {
+  border-color: rgba(255, 160, 90, 0.5);
+  background: rgba(255, 160, 90, 0.14);
 }
 
 .status-card.single {

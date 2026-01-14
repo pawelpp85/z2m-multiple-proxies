@@ -12,7 +12,7 @@ Before migrating, make sure an install code is stored for the device. Install co
 1. Enable pairing in exactly one Zigbee2MQTT instance (do this in that instance, not here).
 2. Click “Migrate” for the device to remove it from its current instance.
 3. Put the device into pairing mode and follow the manufacturer or Zigbee2MQTT instructions.
-4. After the device joins the new instance and finishes the interview, the previous name is applied automatically.
+4. After the device joins the new instance and finishes the interview, use "Change to" to apply the mapped name.
 
 Reset mappings reloads current names from all instances and removes mappings for devices not present in any instance.
 Apply mappings checks for mismatched names and lets you confirm proposed changes.

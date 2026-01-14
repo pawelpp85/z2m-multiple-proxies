@@ -183,11 +183,17 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
     const installClass = hasInstall ? "has-code" : "empty";
     const isOpen = openInstallEditors.has(device.ieee);
 
+    const currentName = device.currentName || "-";
+    const mismatch = device.nameMismatch;
     rows.push(`
-      <div class="row data" data-ieee="${device.ieee}">
+      <div class="row data ${mismatch ? "mismatch" : ""}" data-ieee="${device.ieee}">
         <div class="name-cell">
-          <input type="text" value="${device.mappedName}" data-field="name" data-original="${device.mappedName}" />
-          <button class="ghost save-button hidden" data-action="save">Save</button>
+          <div class="name-current">Current name: <span>${currentName}</span></div>
+          <button class="ghost rename-button" data-action="rename-to" ${mismatch ? "" : "disabled"}>Change to</button>
+          <div class="name-edit">
+            <input type="text" value="${device.mappedName}" data-field="name" data-original="${device.mappedName}" />
+            <button class="ghost save-button hidden" data-action="save">Save</button>
+          </div>
         </div>
         <div class="mono">${device.ieee}</div>
         <div class="install-cell">
@@ -246,6 +252,7 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
         <div><span class="badge ${effectiveClass}">${effectiveLabel}</span></div>
         <div class="actions">
           <button data-action="migrate" ${migrationAvailable && !disabled ? "" : "disabled"}>Migrate</button>
+          <button data-action="force-migrate" ${migrationAvailable && !disabled ? "" : "disabled"}>Force migration</button>
         </div>
       </div>
     `);
@@ -504,7 +511,25 @@ const handleAction = async (action, row) => {
 
   if (action === "migrate") {
     const result = await postJson("api/migrate", { ieee });
-    showToast(`Migrate: ${result.status}`);
+    showToast(`Migrate: ${result.status || "sent"}`);
+    loadState();
+    return;
+  }
+
+  if (action === "force-migrate") {
+    const result = await postJson("api/migrate/force", { ieee });
+    showToast(`Force migration: ${result.status || "sent"}`);
+    loadState();
+    return;
+  }
+
+  if (action === "rename-to") {
+    const result = await postJson("api/mappings/rename-to", { ieee });
+    if (result.error) {
+      showToast(result.error);
+      return;
+    }
+    showToast("Rename command sent");
     loadState();
   }
 };
