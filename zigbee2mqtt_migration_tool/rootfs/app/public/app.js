@@ -188,8 +188,12 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
     rows.push(`
       <div class="row data ${mismatch ? "mismatch" : ""}" data-ieee="${device.ieee}">
         <div class="name-cell">
-          <div class="name-current">Current name: <span>${currentName}</span></div>
-          <button class="ghost rename-button" data-action="rename-to" ${mismatch ? "" : "disabled"}>Change to</button>
+          ${
+            mismatch
+              ? `<div class="name-current">Current name: <span>${currentName}</span></div>
+          <button class="ghost rename-button" data-action="rename-to">Change to</button>`
+              : ""
+          }
           <div class="name-edit">
             <input type="text" value="${device.mappedName}" data-field="name" data-original="${device.mappedName}" />
             <button class="ghost save-button hidden" data-action="save">Save</button>
@@ -252,7 +256,9 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
         <div><span class="badge ${effectiveClass}">${effectiveLabel}</span></div>
         <div class="actions">
           <button data-action="migrate" ${migrationAvailable && !disabled ? "" : "disabled"}>Migrate</button>
-          <button data-action="force-migrate" ${migrationAvailable && !disabled ? "" : "disabled"}>Force migration</button>
+          <button class="force-migrate" data-action="force-migrate" ${
+            migrationAvailable && !disabled ? "" : "disabled"
+          }>Force migration</button>
         </div>
       </div>
     `);

@@ -434,10 +434,12 @@ h1 {
   gap: 8px;
 }
 
-.actions button[data-action="force-migrate"] {
+.actions button.force-migrate {
   background: rgba(124, 18, 26, 0.55);
   color: rgba(255, 230, 230, 0.95);
   border: 1px solid rgba(255, 142, 142, 0.5);
+  padding: 3px 8px;
+  font-size: 10px;
 }
 
 .actions button[data-action="migrate"] {

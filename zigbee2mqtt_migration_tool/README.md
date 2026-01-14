@@ -40,3 +40,6 @@ Use the same instance URLs and optional tokens as the aggregated UI add-on:
 ## Notes
 - Install code “Add to…” sends `bridge/request/install_code/add` to the selected instance.
 - QR scanning requires `BarcodeDetector` support in the browser.
+
+## Development workflow
+After any change, bump the next beta version (e.g. `1.0.1b2`), commit, and run `git push`.

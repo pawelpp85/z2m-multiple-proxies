@@ -31,6 +31,10 @@ Add more proxies by copying any of the proxy folders, adjusting the slug, panel 
 - Each add-on ships with its own ingress port (8099/8100/8101) for internal binding; no host port is exposed by default.
 - Built from the Home Assistant base image with a tiny nginx reverse proxy.
 
+## Development workflow
+
+After any change, bump the next beta version (e.g. `1.0.1b2`), commit, and run `git push`.
+
 ## Zigbee2MQTT via Dockage + Ansible
 
 If you run standalone Zigbee2MQTT containers (e.g., on a NUC) and want to expose them in Home Assistant through these add-ons, you can provision Z2M with Dockage and/or Ansible. Below is a minimal example based on a single instance named "one" that you can copy for multiple networks by changing ports, device paths, and MQTT topics.
