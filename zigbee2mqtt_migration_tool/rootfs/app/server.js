@@ -356,7 +356,7 @@ const buildPairingStatus = () => {
         const seconds = Math.max(0, Math.ceil((backend.permitJoinEndsAt - Date.now()) / 1000));
         remaining = seconds;
       }
-      active.push({ label: backend.label, remaining });
+      active.push({ id: backend.id, label: backend.label, remaining });
     }
   }
   return active;
@@ -947,7 +947,7 @@ app.post("/api/pairing", (req, res) => {
     res.status(404).json({ error: "Backend not found" });
     return;
   }
-  const time = enable ? 600 : 0;
+  const time = enable ? 240 : 0;
   backend.send({
     topic: "bridge/request/permit_join",
     payload: {
@@ -957,7 +957,7 @@ app.post("/api/pairing", (req, res) => {
   pushActivity({
     time: nowIso(),
     type: "migration",
-    message: `${backend.label} - Pairing command sent (${enable ? "enable 10 min" : "disable"})`,
+    message: `${backend.label} - Pairing command sent (${enable ? "enable 4 min" : "disable"})`,
   });
   res.json({ ok: true, label: backend.label });
 });

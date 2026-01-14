@@ -129,18 +129,29 @@ const renderPairing = (pairing) => {
   }
 };
 
-const renderPairingControl = (backends) => {
+const renderPairingControl = (pairing, backends) => {
   if (!elements.pairingControl) {
+    return;
+  }
+  const active = (pairing || []).filter((entry) => entry && entry.id);
+  if (active.length === 1) {
+    const current = active[0];
+    elements.pairingControl.innerHTML = `
+      <button class="secondary danger" data-action="pairing-disable" data-backend="${current.id}">
+        Disable pairing on ${current.label}
+      </button>
+    `;
     return;
   }
   const options = ['<option value="" selected>Pairing control…</option>'];
   (backends || []).forEach((backend) => {
-    options.push(
-      `<option value="${backend.id}:on">${backend.label} — Enable (10 min, all)</option>`,
-    );
-    options.push(`<option value="${backend.id}:off">${backend.label} — Disable</option>`);
+    options.push(`<option value="${backend.id}:on">${backend.label} enable</option>`);
   });
-  elements.pairingControl.innerHTML = options.join("");
+  elements.pairingControl.innerHTML = `
+    <select data-action="pairing-select">
+      ${options.join("")}
+    </select>
+  `;
 };
 
 const renderOverview = (overview) => {
@@ -419,7 +430,7 @@ const loadState = async () => {
     lastState = data;
     renderOverview(data.overview || {});
     renderPairing(data.pairing || []);
-    renderPairingControl(data.backends || []);
+    renderPairingControl(data.pairing || [], data.backends || []);
     renderInstanceFilters(data.backends || []);
     renderTable(data.devices || [], data.migrationAvailable, data.backends || []);
     elements.mappingCount.textContent = `${data.mappingsCount || 0} mappings`;
@@ -804,7 +815,10 @@ elements.applyMappings.addEventListener("click", async () => {
 });
 
 elements.pairingControl?.addEventListener("change", async (event) => {
-  const select = event.target;
+  const select = event.target.closest("select[data-action=\"pairing-select\"]");
+  if (!select) {
+    return;
+  }
   const value = select.value;
   if (!value) {
     return;
@@ -815,11 +829,27 @@ elements.pairingControl?.addEventListener("change", async (event) => {
   if (result.error) {
     showToast(result.error);
   } else {
-    showToast(
-      enable ? `Pairing enabled for ${result.label} (10 min)` : `Pairing disabled for ${result.label}`,
-    );
+    showToast(`Pairing enabled for ${result.label}`);
   }
   select.value = "";
+  loadState();
+});
+
+elements.pairingControl?.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action=\"pairing-disable\"]");
+  if (!button) {
+    return;
+  }
+  const backendId = button.dataset.backend;
+  if (!backendId) {
+    return;
+  }
+  const result = await postJson("api/pairing", { backendId, enable: false });
+  if (result.error) {
+    showToast(result.error);
+  } else {
+    showToast(`Pairing disabled for ${result.label}`);
+  }
   loadState();
 });
 
