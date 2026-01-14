@@ -428,14 +428,14 @@ const buildHaEntityUrl = (entityId) => {
   if (!haBaseUrl || !entityId) {
     return "";
   }
-  return `${haBaseUrl.replace(/\\/$/, "")}/config/entities?entity_id=${encodeURIComponent(entityId)}`;
+  return `${haBaseUrl.replace(/\/$/, "")}/config/entities?entity_id=${encodeURIComponent(entityId)}`;
 };
 
 const buildHaAutomationUrl = (automationId) => {
   if (!haBaseUrl || !automationId) {
     return "";
   }
-  return `${haBaseUrl.replace(/\\/$/, "")}/config/automation/edit/${encodeURIComponent(automationId)}`;
+  return `${haBaseUrl.replace(/\/$/, "")}/config/automation/edit/${encodeURIComponent(automationId)}`;
 };
 
 const renderHaInfo = (payload) => {
