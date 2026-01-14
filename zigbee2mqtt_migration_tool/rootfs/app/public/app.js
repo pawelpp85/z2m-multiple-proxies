@@ -531,7 +531,7 @@ const renderHaInfo = (payload) => {
       plan.forEach((item) => {
         const status = item.status || "missing";
         rows.push(`
-          <div class="ha-row">
+          <div class="ha-row" data-expand="false">
             <div class="ha-status ${status}">${status}</div>
             <div class="mono">${item.desired_entity_id || "-"}</div>
             <div class="mono">${item.current_entity_id || "-"}</div>
@@ -543,7 +543,7 @@ const renderHaInfo = (payload) => {
     } else {
       currentEntities.forEach((item) => {
         rows.push(`
-          <div class="ha-row">
+          <div class="ha-row" data-expand="false">
             <div class="ha-status ok">current</div>
             <div class="mono">-</div>
             <div class="mono">${item.entity_id || "-"}</div>
@@ -656,6 +656,11 @@ const openHaModal = async (ieee, label) => {
       haBaseUrl = result.haUrl;
     }
     renderHaInfo(result);
+    elements.haEntityInfo.querySelectorAll(".ha-row").forEach((row) => {
+      row.addEventListener("click", () => {
+        row.classList.toggle("expanded");
+      });
+    });
   } catch (error) {
     lastHaInfo = null;
     renderHaInfo({ error: "Failed to load Home Assistant data." });

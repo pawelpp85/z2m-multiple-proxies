@@ -795,6 +795,7 @@ button:disabled {
   background: #0f151d;
   border: 1px solid var(--stroke);
   align-items: center;
+  cursor: pointer;
 }
 
 .ha-row.header {
@@ -810,6 +811,15 @@ button:disabled {
   font-family: var(--mono);
   font-size: 10px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ha-row.expanded .mono {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-all;
 }
 
 .ha-list {
