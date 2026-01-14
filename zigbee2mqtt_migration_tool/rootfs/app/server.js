@@ -810,7 +810,11 @@ const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap, entityReg
     ) {
       const looksLikeRegistryId = /^[a-f0-9]{32}$/i.test(entry);
       const knownIds = entityRegistryLookup.registryIdSet;
-      if (looksLikeRegistryId && !knownIds.has(entry)) {
+      if (
+        looksLikeRegistryId &&
+        !knownIds.has(entry) &&
+        entityRegistryLookup.snapshotDeviceIds.has(currentDeviceId)
+      ) {
         const domainMap = entityRegistryLookup.deviceDomainMap.get(currentDeviceId);
         const candidates = domainMap ? domainMap.get(currentDomain) : null;
         if (candidates && candidates.length === 1) {
@@ -869,6 +873,7 @@ const buildEntityRegistryIdMapWithClient = async (client) => {
   const details = [];
   const registryIdSet = new Set();
   const deviceDomainMap = new Map();
+  const snapshotDeviceIds = new Set();
   for (const entry of entities || []) {
     if (!entry || !entry.id || !entry.entity_id) {
       continue;
@@ -895,6 +900,7 @@ const buildEntityRegistryIdMapWithClient = async (client) => {
     if (!currentDevice || !currentDevice.id) {
       continue;
     }
+    snapshotDeviceIds.add(currentDevice.id);
     const currentEntities = (entities || [])
       .filter((entry) => entry.device_id === currentDevice.id)
       .map((entry) => ({
@@ -936,7 +942,7 @@ const buildEntityRegistryIdMapWithClient = async (client) => {
       });
     }
   }
-  return { map, details, registryIdSet, deviceDomainMap };
+  return { map, details, registryIdSet, deviceDomainMap, snapshotDeviceIds };
 };
 
 const buildDeviceIdMap = async () => {
