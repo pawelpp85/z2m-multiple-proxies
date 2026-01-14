@@ -256,7 +256,7 @@ h1 {
 }
 
 .coordinators .row {
-  grid-template-columns: 0.8fr 0.9fr 1.2fr 0.8fr 1.2fr 1.4fr 0.6fr 0.5fr;
+  grid-template-columns: 0.8fr 0.9fr 1.2fr 0.8fr 1.2fr 1.4fr 0.6fr;
 }
 
 .coordinator-row .mono {
@@ -267,6 +267,22 @@ h1 {
   background: rgba(160, 20, 30, 0.28);
   border-color: rgba(255, 86, 86, 0.6);
   animation: pulse-coordinator 1.2s ease-in-out infinite;
+}
+
+.coord-meta-details {
+  display: none;
+  white-space: pre-line;
+  word-break: break-word;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.coordinator-row.expanded .coord-meta-details {
+  display: block;
+}
+
+.coordinator-row.expanded .coord-meta-summary {
+  display: none;
 }
 
 @keyframes pulse-coordinator {

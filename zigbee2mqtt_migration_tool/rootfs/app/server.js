@@ -1328,14 +1328,20 @@ const getActivePairingBackend = () => {
 
 const formatCoordinatorMeta = (meta) => {
   if (!meta || typeof meta !== "object") {
-    return { revision: "", summary: "" };
+    return { revision: "", summary: "", details: "", hasExtra: false };
   }
   const revision = meta.revision || meta.Revision || meta.firmware || "";
-  const summary = Object.entries(meta)
-    .slice(0, 4)
+  const ignoreKeys = new Set(["maintrel", "majorrel", "minorrel", "product"]);
+  const extraEntries = Object.entries(meta).filter(([key]) => !ignoreKeys.has(String(key).toLowerCase()));
+  if (extraEntries.length === 0) {
+    return { revision, summary: "", details: "", hasExtra: false };
+  }
+  const summary = extraEntries
+    .slice(0, 3)
     .map(([key, value]) => `${key}:${value}`)
     .join(", ");
-  return { revision, summary };
+  const details = extraEntries.map(([key, value]) => `${key}: ${value}`).join("\n");
+  return { revision, summary, details, hasExtra: true };
 };
 
 const buildCoordinatorList = () => {
@@ -1371,7 +1377,8 @@ const buildCoordinatorList = () => {
       serialPort: current.serialPort,
       adapter: current.adapter,
       metaSummary: meta.summary || "",
-      metaRaw: coordinator.meta || {},
+      metaDetails: meta.details || "",
+      metaHasExtra: meta.hasExtra || false,
       saved: snapshot,
       changed,
     });
@@ -2126,6 +2133,28 @@ app.post("/api/coordinators/accept", (req, res) => {
   };
   saveCoordinatorSnapshots();
   res.json({ ok: true });
+});
+
+app.post("/api/coordinators/accept-all", (req, res) => {
+  let saved = 0;
+  for (const backend of backends) {
+    if (!backend.bridgeInfo || !backend.bridgeInfo.coordinator) {
+      continue;
+    }
+    const info = backend.bridgeInfo;
+    const meta = formatCoordinatorMeta(info.coordinator.meta || {});
+    coordinatorSnapshots[backend.id] = {
+      ieee: info.coordinator.ieee_address || "",
+      type: info.coordinator.type || "",
+      revision: meta.revision || "",
+      serialPort: info.config?.serial?.port || "",
+      adapter: info.config?.serial?.adapter || "",
+      savedAt: nowIso(),
+    };
+    saved += 1;
+  }
+  saveCoordinatorSnapshots();
+  res.json({ ok: true, saved });
 });
 
 app.post("/api/pairing", (req, res) => {

@@ -11,6 +11,7 @@ const elements = {
   overviewLqi: document.getElementById("overviewLqi"),
   deviceTable: document.getElementById("deviceTable"),
   coordinatorTable: document.getElementById("coordinatorTable"),
+  coordinatorSaveAll: document.getElementById("coordinatorSaveAll"),
   activityLog: document.getElementById("activityLog"),
   mappingCount: document.getElementById("mappingCount"),
   toast: document.getElementById("toast"),
@@ -392,28 +393,25 @@ const renderCoordinators = (coordinators = []) => {
       <div>Serial</div>
       <div>Meta</div>
       <div>Status</div>
-      <div>Actions</div>
     </div>`,
   ];
   coordinators.forEach((entry) => {
     const serial = [entry.adapter, entry.serialPort].filter(Boolean).join(" · ");
-    const meta = entry.metaSummary || "-";
-    const status = entry.changed ? "Changed" : entry.saved ? "Saved" : "New";
+    const meta = entry.metaHasExtra ? entry.metaSummary || "Details" : "-";
+    const status = entry.changed ? "Changed" : "";
     const rowClass = entry.changed ? "coordinator-row changed" : "coordinator-row";
     rows.push(`
-      <div class="row data ${rowClass}" data-backend="${entry.id}">
+      <div class="row data ${rowClass}" data-backend="${entry.id}" data-meta="${entry.metaDetails || ""}">
         <div>${entry.label || entry.id}</div>
         <div>${entry.type || "-"}</div>
         <div class="mono">${entry.ieee || "-"}</div>
         <div>${entry.revision || "-"}</div>
         <div class="mono">${serial || "-"}</div>
-        <div title="${meta}">${meta}</div>
-        <div class="mono">${status}</div>
-        <div>
-          <button class="ghost" data-action="coordinator-accept" ${entry.changed || !entry.saved ? "" : "disabled"}>
-            Save
-          </button>
+        <div class="coord-meta">
+          <span class="coord-meta-summary">${meta}</span>
+          <div class="coord-meta-details">${entry.metaDetails || ""}</div>
         </div>
+        <div class="mono">${status}</div>
       </div>
     `);
   });
@@ -986,24 +984,20 @@ elements.deviceTable.addEventListener("click", (event) => {
 });
 
 elements.coordinatorTable?.addEventListener("click", async (event) => {
-  const button = event.target.closest("button[data-action=\"coordinator-accept\"]");
-  if (!button) {
-    return;
-  }
-  const row = button.closest(".row.data");
+  const row = event.target.closest(".row.data");
   if (!row) {
     return;
   }
-  const backendId = row.dataset.backend;
-  if (!backendId) {
-    return;
-  }
-  const result = await postJson("api/coordinators/accept", { backendId });
+  row.classList.toggle("expanded");
+});
+
+elements.coordinatorSaveAll?.addEventListener("click", async () => {
+  const result = await postEmpty("api/coordinators/accept-all");
   if (result.error) {
     showToast(result.error);
     return;
   }
-  showToast("Coordinator saved");
+  showToast("Coordinator snapshot saved");
   loadState();
 });
 
