@@ -365,6 +365,7 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
             migrationAvailable && !disabled ? "" : "disabled"
           }>Force migration</button>
           <button class="ghost" data-action="ha-details">HA IDs</button>
+          ${device.online === false ? '<button class="ghost danger" data-action="delete-offline">Delete</button>' : ""}
         </div>
       </div>
     `);
@@ -955,6 +956,20 @@ const handleAction = async (action, row) => {
       return;
     }
     showToast("Rename command sent");
+    loadState();
+    return;
+  }
+
+  if (action === "delete-offline") {
+    if (!confirm("Delete this offline device from local mappings?")) {
+      return;
+    }
+    const result = await postJson("api/mappings/delete-offline", { ieee });
+    if (result.error) {
+      showToast(result.error);
+      return;
+    }
+    showToast("Offline device removed");
     loadState();
   }
 };
