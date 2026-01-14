@@ -568,8 +568,22 @@ const buildHaDeviceInfoWithClient = async (client, ieee) => {
 
   const restorePlan = [];
   const usedRegistryIds = new Set();
+  const matchedByIndex = new Map();
   if (snapshot && Array.isArray(snapshot.entities)) {
-    for (const saved of snapshot.entities) {
+    snapshot.entities.forEach((saved, index) => {
+      if (!saved || !saved.entity_id) {
+        return;
+      }
+      const current = currentEntityById.get(saved.entity_id);
+      if (!current) {
+        return;
+      }
+      matchedByIndex.set(index, current);
+      if (current.entity_registry_id) {
+        usedRegistryIds.add(current.entity_registry_id);
+      }
+    });
+    snapshot.entities.forEach((saved, index) => {
       const baseKey = saved.unique_id_base || saved.unique_id;
       const candidates = [
         saved.unique_id
@@ -580,32 +594,41 @@ const buildHaDeviceInfoWithClient = async (client, ieee) => {
           ? currentEntities.find((entry) => entry.original_name === saved.original_name)
           : null,
       ];
-      let current = candidates.find(
-        (entry) => entry && !usedRegistryIds.has(entry.entity_registry_id),
-      );
-      if (current) {
-        usedRegistryIds.add(current.entity_registry_id);
+      let current = matchedByIndex.get(index) || null;
+      if (!current) {
+        current = candidates.find((entry) => entry && !usedRegistryIds.has(entry.entity_registry_id));
+        if (current && current.entity_registry_id) {
+          usedRegistryIds.add(current.entity_registry_id);
+        }
       }
       const currentEntityId = current ? current.entity_id : null;
       const currentRegistryId = current ? current.entity_registry_id : null;
       let status = "missing";
-        if (currentEntityId) {
-          status = currentEntityId === saved.entity_id ? "ok" : "rename";
-          if (currentEntityById.has(saved.entity_id) && saved.entity_id !== currentEntityId) {
-            status = "conflict";
-          }
+      if (currentEntityId) {
+        status = currentEntityId === saved.entity_id ? "ok" : "rename";
+        if (currentEntityById.has(saved.entity_id) && saved.entity_id !== currentEntityId) {
+          status = "conflict";
         }
-        restorePlan.push({
-          desired_entity_id: saved.entity_id,
-          current_entity_id: currentEntityId,
-          desired_registry_id: saved.entity_registry_id || null,
-          current_registry_id: currentRegistryId,
-          unique_id: saved.unique_id,
-          unique_id_base: saved.unique_id_base,
-          status,
-        });
+        if (
+          status === "ok" &&
+          saved.entity_registry_id &&
+          currentRegistryId &&
+          saved.entity_registry_id !== currentRegistryId
+        ) {
+          status = "registry";
+        }
       }
-    }
+      restorePlan.push({
+        desired_entity_id: saved.entity_id,
+        current_entity_id: currentEntityId,
+        desired_registry_id: saved.entity_registry_id || null,
+        current_registry_id: currentRegistryId,
+        unique_id: saved.unique_id,
+        unique_id_base: saved.unique_id_base,
+        status,
+      });
+    });
+  }
 
   const deviceIdMap =
     snapshot && snapshot.device && currentDevice ? { from: snapshot.device.id, to: currentDevice.id } : null;

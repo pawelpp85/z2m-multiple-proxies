@@ -566,6 +566,11 @@ button.secondary.danger {
   border: 1px solid rgba(124, 18, 26, 0.45);
 }
 
+button.ghost.danger {
+  border-color: rgba(255, 120, 120, 0.5);
+  color: rgba(255, 170, 170, 0.9);
+}
+
 .instance-filters {
   display: flex;
   flex-wrap: wrap;
@@ -928,6 +933,10 @@ button:disabled {
 
 .ha-status.missing {
   color: #9aa7b8;
+}
+
+.ha-status.registry {
+  color: #f6d365;
 }
 
 .scanner-inner {
