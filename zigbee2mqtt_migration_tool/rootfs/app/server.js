@@ -35,31 +35,31 @@ const buildBackends = () => {
   const candidates = [
     {
       id: "one",
-      label: options.label_one || "One",
+      label: options.label_one || "",
       url: options.server_one,
       token: options.auth_token_one,
     },
     {
       id: "two",
-      label: options.label_two || "Two",
+      label: options.label_two || "",
       url: options.server_two,
       token: options.auth_token_two,
     },
     {
       id: "three",
-      label: options.label_three || "Three",
+      label: options.label_three || "",
       url: options.server_three,
       token: options.auth_token_three,
     },
     {
       id: "four",
-      label: !options.label_four || options.label_four === "Four" ? "Original" : options.label_four,
+      label: options.label_four || "",
       url: options.server_four,
       token: options.auth_token_four,
     },
   ];
 
-  return candidates.filter((entry) => !!entry.url);
+  return candidates.filter((entry) => !!entry.url && !!entry.label);
 };
 
 const buildWsUrl = (url, token) => {

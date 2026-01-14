@@ -63,7 +63,7 @@ The HA IDs panel snapshots and restores Home Assistant identifiers and can repai
 Use the same instance URLs and optional tokens as the aggregated UI add-on:
 - `server_one..server_four` (optional; omit any unused instances)
 - `auth_token_one..auth_token_four`
-- `label_one..label_four` (optional; defaults to `One`, `Two`, `Three`, `Original` when empty)
+- `label_one..label_four` (optional; instances without a label are hidden)
 Optional Home Assistant integration:
 - `homeassistant_url` (e.g. `http://homeassistant.local:8123`)
 - `homeassistant_token` (Long-lived access token)
