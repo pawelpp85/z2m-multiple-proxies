@@ -101,7 +101,10 @@ const formatLastSeen = (value) => {
     stamp.getFullYear() === now.getFullYear() &&
     stamp.getMonth() === now.getMonth() &&
     stamp.getDate() === now.getDate();
-  return sameDay ? stamp.toLocaleTimeString() : stamp.toLocaleString();
+  const options = { hour12: false };
+  return sameDay
+    ? stamp.toLocaleTimeString(undefined, options)
+    : stamp.toLocaleString(undefined, options);
 };
 
 const renderPairing = (pairing) => {
@@ -244,7 +247,9 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
     const currentName = device.currentName || "-";
     const mismatch = device.nameMismatch;
     const lastSeen = formatLastSeen(device.lastSeen);
-    const lastSeenHtml = lastSeen ? `<div class="last-seen">Last seen ${lastSeen}</div>` : "";
+    const lastSeenHtml = lastSeen
+      ? `<div class="last-seen" title="Last seen">${lastSeen}</div>`
+      : "";
     rows.push(`
       <div class="row data ${mismatch ? "mismatch" : ""}" data-ieee="${device.ieee}">
         <div class="name-cell">
