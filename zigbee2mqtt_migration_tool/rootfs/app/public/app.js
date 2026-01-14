@@ -87,6 +87,22 @@ const formatRemaining = (seconds) => {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 };
 
+const formatLastSeen = (value) => {
+  if (!value) {
+    return "";
+  }
+  const stamp = new Date(value);
+  if (Number.isNaN(stamp.getTime())) {
+    return "";
+  }
+  const now = new Date();
+  const sameDay =
+    stamp.getFullYear() === now.getFullYear() &&
+    stamp.getMonth() === now.getMonth() &&
+    stamp.getDate() === now.getDate();
+  return sameDay ? stamp.toLocaleTimeString() : stamp.toLocaleString();
+};
+
 const renderPairing = (pairing) => {
   const body = elements.pairingStatus.querySelector(".status-body");
   elements.pairingStatus.classList.remove("single", "multi");
@@ -212,6 +228,8 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
 
     const currentName = device.currentName || "-";
     const mismatch = device.nameMismatch;
+    const lastSeen = formatLastSeen(device.lastSeen);
+    const lastSeenHtml = lastSeen ? `<div class="last-seen">Last seen ${lastSeen}</div>` : "";
     rows.push(`
       <div class="row data ${mismatch ? "mismatch" : ""}" data-ieee="${device.ieee}">
         <div class="name-cell">
@@ -280,7 +298,10 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
               : "-"
         }</div>
         <div>${lqi}</div>
-        <div><span class="badge ${effectiveClass}">${effectiveLabel}</span></div>
+        <div>
+          <span class="badge ${effectiveClass}">${effectiveLabel}</span>
+          ${lastSeenHtml}
+        </div>
         <div class="actions">
           <button data-action="migrate" ${migrationAvailable && !disabled ? "" : "disabled"}>Migrate</button>
           <button class="force-migrate" data-action="force-migrate" ${

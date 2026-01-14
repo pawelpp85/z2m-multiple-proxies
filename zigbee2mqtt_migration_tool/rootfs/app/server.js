@@ -253,6 +253,7 @@ const rebuildDeviceIndex = () => {
           online: false,
           interviewCompleted: device.interview_completed !== false,
           linkquality: typeof device.linkquality === "number" ? device.linkquality : null,
+          lastSeen: device.last_seen || null,
         };
         nextIndex.set(ieee, entry);
       }
@@ -272,6 +273,14 @@ const rebuildDeviceIndex = () => {
         const state = backend.deviceStates.get(device.friendly_name);
         if (state && typeof state.linkquality === "number") {
           entry.linkquality = state.linkquality;
+        }
+      }
+      if (device.last_seen) {
+        entry.lastSeen = device.last_seen;
+      } else if (backend.deviceStates && backend.deviceStates.has(device.friendly_name)) {
+        const state = backend.deviceStates.get(device.friendly_name);
+        if (state && state.last_seen) {
+          entry.lastSeen = state.last_seen;
         }
       }
 
@@ -387,6 +396,7 @@ const buildDeviceList = () => {
       online: entry ? entry.online : false,
       interviewCompleted: entry ? entry.interviewCompleted : false,
       linkquality: entry ? entry.linkquality : null,
+      lastSeen: entry ? entry.lastSeen : null,
       installCode: installCodes[ieee] || "",
     });
   }

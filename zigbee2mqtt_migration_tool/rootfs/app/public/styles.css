@@ -423,6 +423,12 @@ h1 {
   color: #ffb191;
 }
 
+.last-seen {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
 .unassigned {
   color: #ffb191;
   font-weight: 600;
