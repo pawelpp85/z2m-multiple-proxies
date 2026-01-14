@@ -566,18 +566,29 @@ const buildHaDeviceInfoWithClient = async (client, ieee) => {
     }
   }
 
-    const restorePlan = [];
-    if (snapshot && Array.isArray(snapshot.entities)) {
-      for (const saved of snapshot.entities) {
-        const baseKey = saved.unique_id_base || saved.unique_id;
-        const current =
-          (baseKey && currentEntityByBase.get(baseKey)) ||
-          currentEntities.find((entry) => entry.unique_id === saved.unique_id) ||
-          currentEntities.find((entry) => entry.original_name === saved.original_name) ||
-          null;
-        const currentEntityId = current ? current.entity_id : null;
-        const currentRegistryId = current ? current.entity_registry_id : null;
-        let status = "missing";
+  const restorePlan = [];
+  const usedRegistryIds = new Set();
+  if (snapshot && Array.isArray(snapshot.entities)) {
+    for (const saved of snapshot.entities) {
+      const baseKey = saved.unique_id_base || saved.unique_id;
+      const candidates = [
+        saved.unique_id
+          ? currentEntities.find((entry) => entry.unique_id === saved.unique_id)
+          : null,
+        baseKey ? currentEntityByBase.get(baseKey) : null,
+        saved.original_name
+          ? currentEntities.find((entry) => entry.original_name === saved.original_name)
+          : null,
+      ];
+      let current = candidates.find(
+        (entry) => entry && !usedRegistryIds.has(entry.entity_registry_id),
+      );
+      if (current) {
+        usedRegistryIds.add(current.entity_registry_id);
+      }
+      const currentEntityId = current ? current.entity_id : null;
+      const currentRegistryId = current ? current.entity_registry_id : null;
+      let status = "missing";
         if (currentEntityId) {
           status = currentEntityId === saved.entity_id ? "ok" : "rename";
           if (currentEntityById.has(saved.entity_id) && saved.entity_id !== currentEntityId) {

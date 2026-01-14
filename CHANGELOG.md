@@ -21,6 +21,9 @@
 ## 1.1.1
 - Migration tool: never auto-delete mappings when coordinators or devices disappear.
 
+## 1.1.2b1
+- Migration tool: avoid false rename status when entity matches are duplicated.
+
 ## 1.1.2
 - Migration tool: keep devices visible in mappings while they are between instances.
 
