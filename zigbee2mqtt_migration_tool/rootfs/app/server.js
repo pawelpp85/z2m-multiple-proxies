@@ -1161,6 +1161,14 @@ const buildPairingStatus = () => {
   return active;
 };
 
+const getActivePairingBackend = () => {
+  const active = backends.filter((backend) => backend.bridgeInfo && backend.bridgeInfo.permit_join);
+  if (active.length === 1) {
+    return active[0];
+  }
+  return null;
+};
+
 const buildDeviceList = () => {
   const combined = [];
   const seen = new Set();
@@ -2012,6 +2020,24 @@ const startMigration = (ieee, force) => {
   const entry = deviceIndex.get(ieee);
   if (!entry) {
     return { status: "not_found" };
+  }
+  const installCode = installCodes[ieee];
+  if (installCode) {
+    const target = getActivePairingBackend();
+    if (target) {
+      target.send({
+        topic: "bridge/request/install_code/add",
+        payload: {
+          value: installCode,
+          label: ieee,
+        },
+      });
+      pushActivity({
+        time: nowIso(),
+        type: "migration",
+        message: `${target.label} - Install code applied for ${ieee}`,
+      });
+    }
   }
   const sourceBackends = backends.filter((backend) => entry.namesByBackend[backend.id]);
   if (sourceBackends.length === 0) {
