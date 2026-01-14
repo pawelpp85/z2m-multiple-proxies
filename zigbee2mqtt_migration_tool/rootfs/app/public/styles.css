@@ -788,12 +788,13 @@ button:disabled {
 
 .ha-row {
   display: grid;
-  grid-template-columns: 1.1fr 1.2fr 1fr 1fr 0.5fr;
+  grid-template-columns: 8ch 36ch 36ch 34ch 34ch;
   gap: 8px;
   padding: 4px 6px;
   border-radius: 10px;
   background: #0f151d;
   border: 1px solid var(--stroke);
+  align-items: center;
 }
 
 .ha-row.header {
@@ -808,6 +809,7 @@ button:disabled {
 .ha-row .mono {
   font-family: var(--mono);
   font-size: 10px;
+  white-space: nowrap;
 }
 
 .ha-list {

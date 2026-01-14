@@ -520,11 +520,11 @@ const renderHaInfo = (payload) => {
   } else {
     const rows = [
       `<div class="ha-row header">
+        <div>Status</div>
         <div>Saved entity_id</div>
         <div>Current entity_id</div>
         <div>Saved reg_id</div>
         <div>Current reg_id</div>
-        <div>Status</div>
       </div>`,
     ];
     if (plan.length > 0) {
@@ -532,11 +532,11 @@ const renderHaInfo = (payload) => {
         const status = item.status || "missing";
         rows.push(`
           <div class="ha-row">
+            <div class="ha-status ${status}">${status}</div>
             <div class="mono">${item.desired_entity_id || "-"}</div>
             <div class="mono">${item.current_entity_id || "-"}</div>
             <div class="mono">${item.desired_registry_id || "-"}</div>
             <div class="mono">${item.current_registry_id || "-"}</div>
-            <div class="ha-status ${status}">${status}</div>
           </div>
         `);
       });
@@ -544,11 +544,11 @@ const renderHaInfo = (payload) => {
       currentEntities.forEach((item) => {
         rows.push(`
           <div class="ha-row">
+            <div class="ha-status ok">current</div>
             <div class="mono">-</div>
             <div class="mono">${item.entity_id || "-"}</div>
             <div class="mono">-</div>
             <div class="mono">${item.entity_registry_id || "-"}</div>
-            <div class="ha-status ok">current</div>
           </div>
         `);
       });
