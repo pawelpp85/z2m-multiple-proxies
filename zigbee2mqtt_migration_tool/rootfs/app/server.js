@@ -688,22 +688,35 @@ const fetchHaAutomations = async (client) => {
   }
   const results = [];
   for (const entry of automationEntities) {
+    const automationId = entry.unique_id || entry.entity_id;
+    let config = null;
     try {
       const payload = await client.request("automation/config", { entity_id: entry.entity_id });
-      if (!payload || !payload.config) {
-        continue;
-      }
-      results.push({
-        id: entry.unique_id || entry.entity_id,
-        config: payload.config,
-        alias: payload.config.alias || entry.original_name || entry.entity_id,
-        entity_id: entry.entity_id,
-      });
+      config = payload?.config || null;
     } catch (error) {
-      if (!isUnknownHaCommand(error)) {
+      const message = String(error.message || "");
+      if (!message.includes("Entity not found") && !message.includes("not found")) {
         throw error;
       }
     }
+    if (!config && automationId) {
+      try {
+        config = await haRestRequest("GET", `/api/config/automation/config/${automationId}`);
+      } catch (restError) {
+        if (!String(restError.message || "").includes("404")) {
+          throw restError;
+        }
+      }
+    }
+    if (!config) {
+      continue;
+    }
+    results.push({
+      id: automationId,
+      config,
+      alias: config.alias || entry.original_name || entry.entity_id,
+      entity_id: entry.entity_id,
+    });
   }
   return results;
 };
@@ -833,20 +846,10 @@ const applyAutomationRewrite = async () => {
       if (!result.changed) {
         continue;
       }
-      try {
-        await client.request("config/automation/update", {
-          id: automation.id,
-          config: result.value,
-        });
-      } catch (error) {
-        if (!isUnknownHaCommand(error)) {
-          throw error;
-        }
-        if (!automation.id) {
-          continue;
-        }
-        await haRestRequest("PUT", `/api/config/automation/config/${automation.id}`, result.value);
+      if (!automation.id) {
+        continue;
       }
+      await haRestRequest("POST", `/api/config/automation/config/${automation.id}`, result.value);
       updated += 1;
       replacementHits += result.hits;
     }
