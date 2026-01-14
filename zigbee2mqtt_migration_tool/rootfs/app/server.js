@@ -1993,6 +1993,28 @@ app.post("/api/mappings/delete-offline", (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/mappings/delete-offline", (req, res) => {
+  const { ieee } = req.body || {};
+  if (!ieee || typeof ieee !== "string") {
+    res.status(400).json({ error: "Missing IEEE address" });
+    return;
+  }
+  const entry = deviceIndex.get(ieee);
+  if (entry && entry.online) {
+    res.status(400).json({ error: "Device is online" });
+    return;
+  }
+  if (mappings[ieee]) {
+    delete mappings[ieee];
+    saveMappings();
+  }
+  if (installCodes[ieee]) {
+    delete installCodes[ieee];
+    saveInstallCodes();
+  }
+  res.json({ ok: true });
+});
+
 app.post("/api/install-codes", (req, res) => {
   const { ieee, code } = req.body || {};
   if (!ieee || typeof ieee !== "string") {
