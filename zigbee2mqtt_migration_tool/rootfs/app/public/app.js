@@ -507,50 +507,39 @@ const renderHaInfo = (payload) => {
   }
 
   const plan = info.restorePlan || [];
-  if (plan.length === 0) {
-    const currentEntities = info.currentEntities || [];
-    if (currentEntities.length === 0) {
-      elements.haEntityInfo.innerHTML = "<div class=\"subtitle\">No entity data available.</div>";
-    } else {
-      const rows = [
-        `<div class="ha-row header">
-          <div>Current entity_id</div>
-          <div>Unique ID</div>
-          <div>Status</div>
-        </div>`,
-      ];
-      currentEntities.forEach((item) => {
-        rows.push(`
-          <div class="ha-row">
-            <div class="mono">${item.entity_id || "-"}</div>
-            <div class="mono">${item.unique_id || "-"}</div>
-            <div class="ha-status ok">current</div>
-          </div>
-        `);
-      });
-      elements.haEntityInfo.innerHTML = rows.join("");
-    }
+  const currentEntities = info.currentEntities || [];
+  if (plan.length === 0 && currentEntities.length === 0) {
+    elements.haEntityInfo.innerHTML = "<div class=\"subtitle\">No entity data available.</div>";
   } else {
     const rows = [
       `<div class="ha-row header">
         <div>Saved entity_id</div>
         <div>Current entity_id</div>
-        <div>Unique ID base</div>
         <div>Status</div>
       </div>`,
     ];
-    plan.forEach((item) => {
-      const status = item.status || "missing";
-      const base = item.unique_id_base || item.unique_id || "-";
-      rows.push(`
-        <div class="ha-row">
-          <div class="mono">${item.desired_entity_id || "-"}</div>
-          <div class="mono">${item.current_entity_id || "-"}</div>
-          <div class="mono">${base}</div>
-          <div class="ha-status ${status}">${status}</div>
-        </div>
-      `);
-    });
+    if (plan.length > 0) {
+      plan.forEach((item) => {
+        const status = item.status || "missing";
+        rows.push(`
+          <div class="ha-row">
+            <div class="mono">${item.desired_entity_id || "-"}</div>
+            <div class="mono">${item.current_entity_id || "-"}</div>
+            <div class="ha-status ${status}">${status}</div>
+          </div>
+        `);
+      });
+    } else {
+      currentEntities.forEach((item) => {
+        rows.push(`
+          <div class="ha-row">
+            <div class="mono">-</div>
+            <div class="mono">${item.entity_id || "-"}</div>
+            <div class="ha-status ok">current</div>
+          </div>
+        `);
+      });
+    }
     elements.haEntityInfo.innerHTML = rows.join("");
   }
 

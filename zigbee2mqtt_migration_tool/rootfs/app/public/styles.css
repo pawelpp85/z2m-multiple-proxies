@@ -775,16 +775,16 @@ button:disabled {
 .ha-table {
   display: grid;
   gap: 6px;
-  font-size: 12px;
-  max-height: 260px;
+  font-size: 11px;
+  max-height: 220px;
   overflow: auto;
 }
 
 .ha-row {
   display: grid;
-  grid-template-columns: 1.1fr 1.4fr 0.7fr 0.6fr;
+  grid-template-columns: 1.1fr 1.4fr 0.6fr;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 4px 6px;
   border-radius: 10px;
   background: #0f151d;
   border: 1px solid var(--stroke);
@@ -796,12 +796,12 @@ button:disabled {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .ha-row .mono {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .ha-list {
