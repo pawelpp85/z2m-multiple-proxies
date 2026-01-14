@@ -809,6 +809,7 @@ button:disabled {
   flex-wrap: wrap;
   gap: 8px;
   font-size: 12px;
+  flex-direction: column;
 }
 
 .ha-link {
@@ -826,6 +827,17 @@ button:disabled {
 
 .ha-more {
   color: var(--ink-soft);
+}
+
+.ha-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ha-meta {
+  color: var(--ink-soft);
+  font-size: 11px;
 }
 
 .ha-status.ok {

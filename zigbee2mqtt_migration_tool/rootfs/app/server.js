@@ -745,6 +745,8 @@ const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap, entityReg
     let hits = 0;
     let deviceHits = 0;
     let entityHits = 0;
+    const deviceIds = [];
+    const entityIds = [];
     const next = value.map((item) => {
       const result = rewriteAutomationIds(item, deviceIdMap, entityRegistryIdMap, entityRegistryLookup);
       if (result.changed) {
@@ -752,18 +754,22 @@ const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap, entityReg
         hits += result.hits;
         deviceHits += result.deviceHits;
         entityHits += result.entityHits;
+        deviceIds.push(...result.deviceIds);
+        entityIds.push(...result.entityIds);
       }
       return result.value;
     });
-    return { value: next, changed, hits, deviceHits, entityHits };
+    return { value: next, changed, hits, deviceHits, entityHits, deviceIds, entityIds };
   }
   if (!value || typeof value !== "object") {
-    return { value, changed: false, hits: 0, deviceHits: 0, entityHits: 0 };
+    return { value, changed: false, hits: 0, deviceHits: 0, entityHits: 0, deviceIds: [], entityIds: [] };
   }
   let changed = false;
   let hits = 0;
   let deviceHits = 0;
   let entityHits = 0;
+  const deviceIds = [];
+  const entityIds = [];
   const next = {};
   const currentDeviceId = typeof value.device_id === "string" ? value.device_id : null;
   const currentDomain = typeof value.domain === "string" ? value.domain : null;
@@ -773,6 +779,7 @@ const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap, entityReg
       changed = true;
       hits += 1;
       deviceHits += 1;
+      deviceIds.push(entry);
       continue;
     }
     if (key === "entity_id" && entityRegistryIdMap && entityRegistryIdMap.size > 0) {
@@ -781,6 +788,7 @@ const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap, entityReg
         changed = true;
         hits += 1;
         entityHits += 1;
+        entityIds.push(entry);
         continue;
       }
       if (Array.isArray(entry)) {
@@ -790,6 +798,7 @@ const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap, entityReg
             updated = true;
             hits += 1;
             entityHits += 1;
+            entityIds.push(item);
             return entityRegistryIdMap.get(item);
           }
           return item;
@@ -822,6 +831,7 @@ const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap, entityReg
           changed = true;
           hits += 1;
           entityHits += 1;
+          entityIds.push(entry);
           continue;
         }
       }
@@ -833,9 +843,11 @@ const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap, entityReg
       hits += result.hits;
       deviceHits += result.deviceHits;
       entityHits += result.entityHits;
+      deviceIds.push(...result.deviceIds);
+      entityIds.push(...result.entityIds);
     }
   }
-  return { value: next, changed, hits, deviceHits, entityHits };
+  return { value: next, changed, hits, deviceHits, entityHits, deviceIds, entityIds };
 };
 
 const buildDeviceIdMapWithClient = async (client) => {
@@ -956,6 +968,8 @@ const previewAutomationRewrite = async () => {
     const { map, details } = await buildDeviceIdMapWithClient(client);
     const entityInfo = await buildEntityRegistryIdMapWithClient(client);
     const { map: entityMap, details: entityDetails } = entityInfo;
+    const deviceIdToIeee = new Map(details.map((entry) => [entry.from, entry.ieee]));
+    const entityIdToIeee = new Map(entityDetails.map((entry) => [entry.from, entry.ieee]));
     let affectedAutomations = 0;
     let replacementHits = 0;
     let deviceHits = 0;
@@ -968,10 +982,26 @@ const previewAutomationRewrite = async () => {
         replacementHits += result.hits;
         deviceHits += result.deviceHits;
         entityHits += result.entityHits;
+        const ieees = new Set();
+        result.deviceIds.forEach((id) => {
+          const ieee = deviceIdToIeee.get(id);
+          if (ieee) {
+            ieees.add(ieee);
+          }
+        });
+        result.entityIds.forEach((id) => {
+          const ieee = entityIdToIeee.get(id);
+          if (ieee) {
+            ieees.add(ieee);
+          }
+        });
         affected.push({
           id: automation.id || "",
           alias: automation.alias || "",
           hits: result.hits,
+          deviceHits: result.deviceHits,
+          entityHits: result.entityHits,
+          ieees: [...ieees],
         });
       }
     }

@@ -582,10 +582,21 @@ const renderHaInfo = (payload) => {
         .map((entry) => {
           const url = buildHaAutomationUrl(entry.id);
           const label = entry.alias || entry.id || "automation";
-          if (!url) {
-            return `<span class="ha-more">${label}</span>`;
+          const ieees = entry.ieees && entry.ieees.length > 0 ? entry.ieees.join(", ") : "";
+          const detail = [];
+          if (typeof entry.deviceHits === "number" && entry.deviceHits > 0) {
+            detail.push(`device_id: ${entry.deviceHits}`);
           }
-          return `<a class="ha-link" href="${url}" target="_blank" rel="noreferrer">${label}</a>`;
+          if (typeof entry.entityHits === "number" && entry.entityHits > 0) {
+            detail.push(`entity_id: ${entry.entityHits}`);
+          }
+          const note = detail.length > 0 ? `Changes: ${detail.join(", ")}` : "Changes detected";
+          const deviceNote = ieees ? `Device(s): ${ieees}` : "Device: unknown";
+          const meta = `<span class="ha-meta">${deviceNote} · ${note}</span>`;
+          if (!url) {
+            return `<div class="ha-item"><span class="ha-more">${label}</span>${meta}</div>`;
+          }
+          return `<div class="ha-item"><a class="ha-link" href="${url}" target="_blank" rel="noreferrer">${label}</a>${meta}</div>`;
         })
         .join("");
       if (affected.length > 10) {
