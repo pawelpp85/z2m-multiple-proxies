@@ -1362,22 +1362,11 @@ const getActivePairingBackend = () => {
   return null;
 };
 
-const formatCoordinatorMeta = (meta) => {
+const getCoordinatorRevision = (meta) => {
   if (!meta || typeof meta !== "object") {
-    return { revision: "", summary: "", details: "", hasExtra: false };
+    return "";
   }
-  const revision = meta.revision || meta.Revision || meta.firmware || "";
-  const ignoreKeys = new Set(["maintrel", "majorrel", "minorrel", "product"]);
-  const extraEntries = Object.entries(meta).filter(([key]) => !ignoreKeys.has(String(key).toLowerCase()));
-  if (extraEntries.length === 0) {
-    return { revision, summary: "", details: "", hasExtra: false };
-  }
-  const summary = extraEntries
-    .slice(0, 3)
-    .map(([key, value]) => `${key}:${value}`)
-    .join(", ");
-  const details = extraEntries.map(([key, value]) => `${key}: ${value}`).join("\n");
-  return { revision, summary, details, hasExtra: true };
+  return meta.revision || meta.Revision || meta.firmware || "";
 };
 
 const buildCoordinatorList = () => {
@@ -1388,12 +1377,12 @@ const buildCoordinatorList = () => {
     if (!coordinator) {
       continue;
     }
-    const meta = formatCoordinatorMeta(coordinator.meta || {});
+    const revision = getCoordinatorRevision(coordinator.meta || {});
     const snapshot = coordinatorSnapshots[backend.id] || null;
     const current = {
       type: coordinator.type || "",
       ieee: coordinator.ieee_address || "",
-      revision: meta.revision || "",
+      revision: revision || "",
       serialPort: info?.config?.serial?.port || "",
       adapter: info?.config?.serial?.adapter || "",
     };
@@ -1412,9 +1401,6 @@ const buildCoordinatorList = () => {
       revision: current.revision,
       serialPort: current.serialPort,
       adapter: current.adapter,
-      metaSummary: meta.summary || "",
-      metaDetails: meta.details || "",
-      metaHasExtra: meta.hasExtra || false,
       saved: snapshot,
       changed,
     });
@@ -2210,11 +2196,11 @@ app.post("/api/coordinators/accept", (req, res) => {
     return;
   }
   const info = backend.bridgeInfo;
-  const meta = formatCoordinatorMeta(info.coordinator.meta || {});
+  const revision = getCoordinatorRevision(info.coordinator.meta || {});
   coordinatorSnapshots[backendId] = {
     ieee: info.coordinator.ieee_address || "",
     type: info.coordinator.type || "",
-    revision: meta.revision || "",
+    revision: revision || "",
     serialPort: info.config?.serial?.port || "",
     adapter: info.config?.serial?.adapter || "",
     savedAt: nowIso(),
@@ -2230,11 +2216,11 @@ app.post("/api/coordinators/accept-all", (req, res) => {
       continue;
     }
     const info = backend.bridgeInfo;
-    const meta = formatCoordinatorMeta(info.coordinator.meta || {});
+    const revision = getCoordinatorRevision(info.coordinator.meta || {});
     coordinatorSnapshots[backend.id] = {
       ieee: info.coordinator.ieee_address || "",
       type: info.coordinator.type || "",
-      revision: meta.revision || "",
+      revision: revision || "",
       serialPort: info.config?.serial?.port || "",
       adapter: info.config?.serial?.adapter || "",
       savedAt: nowIso(),

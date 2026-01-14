@@ -12,3 +12,11 @@
 - Aggregated add-on: improve permit_join routing (IEEE-aware) and countdown handling.
 - Aggregated add-on: add fourth backend ("Original") with HA add-on default.
 - Docs: add Dockage/Ansible setup example and Zigbee device mapping notes.
+- Migration tool: Home Assistant IDs modal with snapshots, entity_id restore, and automation rewrite tools.
+- Migration tool: migration flow now auto-saves HA snapshots and blocks without HA config.
+- Migration tool: coordinator inventory with saved snapshots, change highlighting, and bulk save.
+- Migration tool: migration status UI, pairing safety checks, and install code auto-add on migrate.
+- Migration tool: device mappings usability (filters, delete offline entries, compact entity table, links).
+
+## 1.0.0
+- Initial release.

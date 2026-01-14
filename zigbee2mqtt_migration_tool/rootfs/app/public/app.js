@@ -392,26 +392,20 @@ const renderCoordinators = (coordinators = []) => {
       <div>IEEE address</div>
       <div>Revision</div>
       <div>Serial</div>
-      <div>Meta</div>
       <div>Status</div>
     </div>`,
   ];
   coordinators.forEach((entry) => {
     const serial = [entry.adapter, entry.serialPort].filter(Boolean).join(" · ");
-    const meta = entry.metaHasExtra ? entry.metaSummary || "Details" : "-";
     const status = entry.changed ? "Changed" : "";
     const rowClass = entry.changed ? "coordinator-row changed" : "coordinator-row";
     rows.push(`
-      <div class="row data ${rowClass}" data-backend="${entry.id}" data-meta="${entry.metaDetails || ""}">
+      <div class="row data ${rowClass}" data-backend="${entry.id}">
         <div>${entry.label || entry.id}</div>
         <div>${entry.type || "-"}</div>
         <div class="mono">${entry.ieee || "-"}</div>
         <div>${entry.revision || "-"}</div>
         <div class="mono">${serial || "-"}</div>
-        <div class="coord-meta">
-          <span class="coord-meta-summary">${meta}</span>
-          <div class="coord-meta-details">${entry.metaDetails || ""}</div>
-        </div>
         <div class="mono">${status}</div>
       </div>
     `);
