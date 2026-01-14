@@ -679,38 +679,33 @@ const haRestRequest = async (method, pathName, payload) => {
 };
 
 const fetchHaAutomations = async (client) => {
-  try {
-    const result = await client.request("config/automation/config");
-    if (Array.isArray(result)) {
-      return result;
-    }
-    if (result && Array.isArray(result.config)) {
-      return result.config;
-    }
+  const entities = await client.request("config/entity_registry/list");
+  const automationEntities = (entities || []).filter(
+    (entry) => entry && typeof entry.entity_id === "string" && entry.entity_id.startsWith("automation."),
+  );
+  if (automationEntities.length === 0) {
     return [];
-  } catch (error) {
-    if (!isUnknownHaCommand(error)) {
-      throw error;
-    }
-    const candidates = [
-      "/api/config/automation/config",
-      "/api/config/automation",
-      "/api/config/automation/configuration",
-    ];
-    for (const pathName of candidates) {
-      try {
-        const result = await haRestRequest("GET", pathName);
-        if (Array.isArray(result)) {
-          return result;
-        }
-      } catch (restError) {
-        if (!String(restError.message || "").includes("404")) {
-          throw restError;
-        }
+  }
+  const results = [];
+  for (const entry of automationEntities) {
+    try {
+      const payload = await client.request("automation/config", { entity_id: entry.entity_id });
+      if (!payload || !payload.config) {
+        continue;
+      }
+      results.push({
+        id: entry.unique_id || entry.entity_id,
+        config: payload.config,
+        alias: payload.config.alias || entry.original_name || entry.entity_id,
+        entity_id: entry.entity_id,
+      });
+    } catch (error) {
+      if (!isUnknownHaCommand(error)) {
+        throw error;
       }
     }
-    throw new Error("Home Assistant REST error 404");
   }
+  return results;
 };
 
 const normalizeAutomationEntry = (entry) => {
