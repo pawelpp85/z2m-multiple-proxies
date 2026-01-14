@@ -469,12 +469,13 @@ const sendRename = (backend, fromName, toName) => {
   });
 };
 
-const sendRemove = (backend, ieee, force) => {
+const sendRemove = (backend, ieee, force, block) => {
   backend.send({
     topic: "bridge/request/device/remove",
     payload: {
       id: ieee,
       force: !!force,
+      block: !!block,
     },
   });
 };
@@ -1053,7 +1054,7 @@ const requestRemoval = (ieee) => {
 
     for (const backend of backends) {
       if (entry.namesByBackend[backend.id]) {
-        sendRemove(backend, ieee, false);
+        sendRemove(backend, ieee, false, false);
       }
     }
 
@@ -1104,11 +1105,11 @@ const startMigration = (ieee, force) => {
   });
 
   for (const backend of sourceBackends) {
-    sendRemove(backend, ieee, !!force);
+    sendRemove(backend, ieee, !!force, !!force);
     pushActivity({
       time: nowIso(),
       type: "migration",
-      message: `${backend.label} - Remove command sent for ${ieee}${force ? " (force)" : ""}`,
+      message: `${backend.label} - Remove command sent for ${ieee}${force ? " (force, block)" : ""}`,
     });
   }
   if (force) {
