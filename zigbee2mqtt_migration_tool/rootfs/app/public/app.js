@@ -24,6 +24,18 @@ const elements = {
   mappingModalText: document.getElementById("mappingModalText"),
   mappingCancel: document.getElementById("mappingCancel"),
   mappingApply: document.getElementById("mappingApply"),
+  haModal: document.getElementById("haModal"),
+  haClose: document.getElementById("haClose"),
+  haDeviceTitle: document.getElementById("haDeviceTitle"),
+  haStatus: document.getElementById("haStatus"),
+  haSnapshotInfo: document.getElementById("haSnapshotInfo"),
+  haSnapshot: document.getElementById("haSnapshot"),
+  haRestore: document.getElementById("haRestore"),
+  haDeviceInfo: document.getElementById("haDeviceInfo"),
+  haEntityInfo: document.getElementById("haEntityInfo"),
+  haAutomationInfo: document.getElementById("haAutomationInfo"),
+  haAutomationPreview: document.getElementById("haAutomationPreview"),
+  haAutomationApply: document.getElementById("haAutomationApply"),
 };
 
 let lastState = null;
@@ -38,6 +50,9 @@ let scannerTargetIeee = null;
 let mappingQueue = [];
 let mappingCurrent = null;
 let isEditing = false;
+let haModalIeee = null;
+let haAutomationPreview = null;
+let lastHaInfo = null;
 const scanAvailable =
   "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
 const openInstallEditors = new Set();
@@ -338,6 +353,7 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
           <button class="force-migrate" data-action="force-migrate" ${
             migrationAvailable && !disabled ? "" : "disabled"
           }>Force migration</button>
+          <button class="ghost" data-action="ha-details">HA IDs</button>
         </div>
       </div>
     `);
@@ -393,8 +409,151 @@ const renderLogs = (logs) => {
           <div class="time">${time}</div>
         </div>
       `;
-    })
-    .join("");
+      })
+      .join("");
+};
+
+const formatIdentifiers = (items) => {
+  if (!items || items.length === 0) {
+    return "-";
+  }
+  return items
+    .map((entry) => (Array.isArray(entry) ? `${entry[0]}:${entry[1]}` : String(entry)))
+    .join(", ");
+};
+
+const renderHaInfo = (payload) => {
+  const info = payload?.info;
+  if (!info) {
+    elements.haStatus.textContent = payload?.error || "No Home Assistant data.";
+    elements.haSnapshotInfo.textContent = "-";
+    elements.haDeviceInfo.textContent = "-";
+    elements.haEntityInfo.innerHTML = "";
+    elements.haAutomationInfo.textContent = "-";
+    elements.haSnapshot.disabled = true;
+    elements.haRestore.disabled = true;
+    elements.haAutomationPreview.disabled = true;
+    elements.haAutomationApply.disabled = true;
+    return;
+  }
+
+  const snapshot = info.snapshot;
+  const current = info.currentDevice;
+  const statusLines = [];
+  if (snapshot && snapshot.device) {
+    statusLines.push(
+      `Snapshot: ${snapshot.updatedAt || "unknown time"} (${snapshot.entities?.length || 0} entities)`,
+    );
+  } else {
+    statusLines.push("Snapshot: not saved");
+  }
+  if (current) {
+    statusLines.push(`Current device: ${current.id}`);
+  } else {
+    statusLines.push("Current device: not found in Home Assistant");
+  }
+  elements.haStatus.textContent = statusLines.join("\n");
+
+  if (snapshot && snapshot.device) {
+    const snapshotLines = [
+      `Device ID: ${snapshot.device.id || "-"}`,
+      `Name: ${snapshot.device.name || "-"}`,
+      `Identifiers: ${formatIdentifiers(snapshot.device.identifiers)}`,
+    ];
+    elements.haSnapshotInfo.textContent = snapshotLines.join("\n");
+    elements.haRestore.disabled = false;
+  } else {
+    elements.haSnapshotInfo.textContent = "No snapshot saved yet.";
+    elements.haRestore.disabled = true;
+  }
+
+  if (current) {
+    const deviceLines = [
+      `Device ID: ${current.id || "-"}`,
+      `Name: ${current.name || "-"}`,
+      `Manufacturer: ${current.manufacturer || "-"}`,
+      `Model: ${current.model || "-"}`,
+      `Identifiers: ${formatIdentifiers(current.identifiers)}`,
+    ];
+    elements.haDeviceInfo.textContent = deviceLines.join("\n");
+  } else {
+    elements.haDeviceInfo.textContent = "Device not found in Home Assistant.";
+  }
+
+  const plan = info.restorePlan || [];
+  if (plan.length === 0) {
+    elements.haEntityInfo.innerHTML = "<div class=\"subtitle\">No entity data available.</div>";
+  } else {
+    const rows = [
+      `<div class="ha-row header">
+        <div>Saved entity_id</div>
+        <div>Current entity_id</div>
+        <div>Unique ID base</div>
+        <div>Status</div>
+      </div>`,
+    ];
+    plan.forEach((item) => {
+      const status = item.status || "missing";
+      const base = item.unique_id_base || item.unique_id || "-";
+      rows.push(`
+        <div class="ha-row">
+          <div class="mono">${item.desired_entity_id || "-"}</div>
+          <div class="mono">${item.current_entity_id || "-"}</div>
+          <div class="mono">${base}</div>
+          <div class="ha-status ${status}">${status}</div>
+        </div>
+      `);
+    });
+    elements.haEntityInfo.innerHTML = rows.join("");
+  }
+
+  if (haAutomationPreview) {
+    const lines = [
+      `Automations: ${haAutomationPreview.automations}`,
+      `Affected: ${haAutomationPreview.affectedAutomations}`,
+      `Replacements: ${haAutomationPreview.replacementHits}`,
+    ];
+    const mappings = haAutomationPreview.deviceIdMap || [];
+    if (mappings.length > 0) {
+      lines.push("Device ID map:");
+      mappings.slice(0, 5).forEach((entry) => {
+        lines.push(`- ${entry.ieee}: ${entry.from} -> ${entry.to}`);
+      });
+      if (mappings.length > 5) {
+        lines.push(`- and ${mappings.length - 5} more...`);
+      }
+    }
+    elements.haAutomationInfo.textContent = lines.join("\n");
+  } else {
+    elements.haAutomationInfo.textContent = "No automation preview run yet.";
+  }
+  elements.haAutomationApply.disabled = !haAutomationPreview || haAutomationPreview.affectedAutomations === 0;
+  elements.haSnapshot.disabled = false;
+  elements.haAutomationPreview.disabled = false;
+};
+
+const openHaModal = async (ieee, label) => {
+  haModalIeee = ieee;
+  haAutomationPreview = null;
+  elements.haDeviceTitle.textContent = label ? `${label} (${ieee})` : ieee;
+  elements.haStatus.textContent = "Loading...";
+  elements.haSnapshotInfo.textContent = "-";
+  elements.haDeviceInfo.textContent = "-";
+  elements.haEntityInfo.innerHTML = "";
+  elements.haAutomationInfo.textContent = "No automation preview run yet.";
+  elements.haSnapshot.disabled = true;
+  elements.haRestore.disabled = true;
+  elements.haAutomationPreview.disabled = true;
+  elements.haAutomationApply.disabled = true;
+  elements.haModal.classList.remove("hidden");
+  try {
+    const result = await getJson(`api/ha/device?ieee=${encodeURIComponent(ieee)}`);
+    lastHaInfo = result.info || null;
+    renderHaInfo(result);
+  } catch (error) {
+    lastHaInfo = null;
+    renderHaInfo({ error: "Failed to load Home Assistant data." });
+  }
 };
 
 const renderInstanceFilters = (backends) => {
@@ -451,6 +610,11 @@ const loadLogs = async () => {
   } catch (error) {
     showToast("Failed to load logs");
   }
+};
+
+const getJson = async (url) => {
+  const response = await fetch(url);
+  return response.json();
 };
 
 const postJson = async (url, payload) => {
@@ -615,6 +779,13 @@ const handleAction = async (action, row) => {
       showToast(`Force migration: ${result.status || "sent"}`);
     }
     loadState();
+    return;
+  }
+
+  if (action === "ha-details") {
+    const nameInput = row.querySelector("input[data-field=\"name\"]");
+    const label = nameInput ? nameInput.value.trim() : "";
+    openHaModal(ieee, label);
     return;
   }
 
@@ -882,6 +1053,70 @@ elements.mappingApply.addEventListener("click", async () => {
     showToast("Mapping updated");
   }
   showNextMapping();
+});
+
+elements.haClose.addEventListener("click", () => {
+  elements.haModal.classList.add("hidden");
+});
+
+elements.haModal.addEventListener("click", (event) => {
+  if (event.target === elements.haModal) {
+    elements.haModal.classList.add("hidden");
+  }
+});
+
+elements.haSnapshot.addEventListener("click", async () => {
+  if (!haModalIeee) {
+    return;
+  }
+  const result = await postJson("api/ha/snapshot", { ieee: haModalIeee });
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  showToast("Snapshot saved");
+  openHaModal(haModalIeee);
+});
+
+elements.haRestore.addEventListener("click", async () => {
+  if (!haModalIeee) {
+    return;
+  }
+  const result = await postJson("api/ha/restore-entity-ids", { ieee: haModalIeee });
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  showToast("Entity IDs restore requested");
+  openHaModal(haModalIeee);
+});
+
+elements.haAutomationPreview.addEventListener("click", async () => {
+  if (!lastHaInfo) {
+    showToast("Load HA device info first");
+    return;
+  }
+  const result = await postEmpty("api/ha/automations/preview");
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  haAutomationPreview = result.result || null;
+  renderHaInfo({ info: lastHaInfo });
+});
+
+elements.haAutomationApply.addEventListener("click", async () => {
+  if (!confirm("Rewrite device_id in automations now?")) {
+    return;
+  }
+  const result = await postEmpty("api/ha/automations/rewrite");
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  showToast("Automation rewrite applied");
+  haAutomationPreview = null;
+  openHaModal(haModalIeee);
 });
 
 loadFilters();

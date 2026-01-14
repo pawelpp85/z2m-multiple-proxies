@@ -7,6 +7,7 @@ const WebSocket = require("ws");
 const OPTIONS_PATH = "/data/options.json";
 const MAP_PATH = "/data/ieee-map.json";
 const INSTALL_CODES_PATH = "/data/install-codes.json";
+const HA_SNAPSHOT_PATH = "/data/ha-entity-map.json";
 const LISTEN_PORT = 8104;
 const RECONNECT_DELAY_MS = 5000;
 const MAX_ACTIVITY_ENTRIES = 250;
@@ -14,6 +15,9 @@ const ACTIVITY_TTL_MS = 3 * 60 * 1000;
 const LAST_SEEN_ONLINE_MS = 10 * 60 * 1000;
 const REMOVE_TIMEOUT_MS = 15000;
 const MIGRATION_TTL_MS = 60 * 60 * 1000;
+const HA_REQUEST_TIMEOUT_MS = 8000;
+const HA_RESTORE_RETRY_MS = 12000;
+const HA_RESTORE_MAX_ATTEMPTS = 12;
 
 const readOptions = () => {
   try {
@@ -72,9 +76,11 @@ let backends = [];
 let deviceIndex = new Map();
 const deviceNameToIeee = new Map();
 let installCodes = {};
+let haSnapshots = {};
 const recentActivity = [];
 const pendingRemovals = new Map();
 const pendingMigrations = new Map();
+const pendingHaRestores = new Map();
 
 const nowIso = () => new Date().toISOString();
 
@@ -139,6 +145,38 @@ const saveInstallCodes = () => {
     fs.writeFileSync(INSTALL_CODES_PATH, JSON.stringify(payload, null, 2));
   } catch (error) {
     console.error("Failed to save install codes file", error);
+  }
+};
+
+const loadHaSnapshots = () => {
+  try {
+    const raw = fs.readFileSync(HA_SNAPSHOT_PATH, "utf8");
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.devices && typeof parsed.devices === "object") {
+      haSnapshots = parsed.devices;
+      return;
+    }
+    if (parsed && typeof parsed === "object") {
+      haSnapshots = parsed;
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.error("Failed to load HA snapshot file", error);
+    }
+    haSnapshots = {};
+  }
+};
+
+const saveHaSnapshots = () => {
+  const payload = {
+    version: 1,
+    updatedAt: nowIso(),
+    devices: haSnapshots,
+  };
+  try {
+    fs.writeFileSync(HA_SNAPSHOT_PATH, JSON.stringify(payload, null, 2));
+  } catch (error) {
+    console.error("Failed to save HA snapshot file", error);
   }
 };
 
@@ -222,6 +260,512 @@ const isDeviceOnline = (backend, device) => {
     return true;
   }
   return false;
+};
+
+const getHaConfig = () => {
+  const url = options.homeassistant_url || "";
+  const token = options.homeassistant_token || "";
+  return { url: url.trim(), token: token.trim() };
+};
+
+const buildHaWsUrl = (url) => {
+  const parsed = new URL(url);
+  parsed.protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
+  parsed.pathname = path.posix.join(parsed.pathname || "/", "api", "websocket");
+  return parsed.toString();
+};
+
+const createHaClient = () => {
+  const { url, token } = getHaConfig();
+  if (!url || !token) {
+    return Promise.reject(new Error("Home Assistant URL or token missing"));
+  }
+  const wsUrl = buildHaWsUrl(url);
+  return new Promise((resolve, reject) => {
+    let ready = false;
+    let nextId = 1;
+    const pending = new Map();
+    const ws = new WebSocket(wsUrl);
+    const request = (type, payload = {}) =>
+      new Promise((resolveRequest, rejectRequest) => {
+        if (!ready) {
+          rejectRequest(new Error("Home Assistant WebSocket not ready"));
+          return;
+        }
+        const id = nextId++;
+        const body = { id, type, ...payload };
+        const timeout = setTimeout(() => {
+          pending.delete(id);
+          rejectRequest(new Error(`Home Assistant request timeout (${type})`));
+        }, HA_REQUEST_TIMEOUT_MS);
+        pending.set(id, { resolve: resolveRequest, reject: rejectRequest, timeout });
+        ws.send(JSON.stringify(body));
+      });
+
+    const close = () => {
+      ws.close();
+      for (const entry of pending.values()) {
+        clearTimeout(entry.timeout);
+        entry.reject(new Error("Home Assistant connection closed"));
+      }
+      pending.clear();
+    };
+
+    ws.on("message", (data) => {
+      let message = null;
+      try {
+        message = JSON.parse(data.toString());
+      } catch (error) {
+        console.error("[HA] Failed to parse WebSocket message", error);
+        return;
+      }
+      if (message.type === "auth_required") {
+        ws.send(JSON.stringify({ type: "auth", access_token: token }));
+        return;
+      }
+      if (message.type === "auth_ok") {
+        ready = true;
+        resolve({ request, close });
+        return;
+      }
+      if (message.type === "auth_invalid") {
+        reject(new Error("Home Assistant auth failed"));
+        close();
+        return;
+      }
+      if (message.id && pending.has(message.id)) {
+        const entry = pending.get(message.id);
+        clearTimeout(entry.timeout);
+        pending.delete(message.id);
+        if (message.success) {
+          entry.resolve(message.result);
+        } else {
+          entry.reject(new Error(message.error?.message || "Home Assistant request failed"));
+        }
+      }
+    });
+
+    ws.on("error", (error) => {
+      reject(error);
+      close();
+    });
+
+    ws.on("close", () => {
+      if (!ready) {
+        reject(new Error("Home Assistant connection closed"));
+      }
+      close();
+    });
+  });
+};
+
+const withHaClient = async (callback) => {
+  const client = await createHaClient();
+  try {
+    return await callback(client);
+  } finally {
+    client.close();
+  }
+};
+
+const findCommonSuffix = (values) => {
+  if (!values || values.length === 0) {
+    return "";
+  }
+  const reversed = values.map((value) => value.split("").reverse().join(""));
+  let prefix = reversed[0];
+  for (let i = 1; i < reversed.length; i += 1) {
+    const current = reversed[i];
+    let nextPrefix = "";
+    const max = Math.min(prefix.length, current.length);
+    for (let j = 0; j < max; j += 1) {
+      if (prefix[j] !== current[j]) {
+        break;
+      }
+      nextPrefix += prefix[j];
+    }
+    prefix = nextPrefix;
+    if (!prefix) {
+      break;
+    }
+  }
+  return prefix.split("").reverse().join("");
+};
+
+const matchDeviceByIeee = (devices, ieee) => {
+  const target = ieee.toLowerCase();
+  return devices.find((device) => {
+    if (!device || !Array.isArray(device.identifiers)) {
+      return false;
+    }
+    return device.identifiers.some((entry) => {
+      if (!Array.isArray(entry) || entry.length < 2) {
+        return false;
+      }
+      const id = String(entry[1] || "").toLowerCase();
+      return id === target || id.includes(target);
+    });
+  });
+};
+
+const formatHaDevice = (device) => {
+  if (!device) {
+    return null;
+  }
+  return {
+    id: device.id,
+    name: device.name || device.name_by_user || "",
+    identifiers: device.identifiers || [],
+    connections: device.connections || [],
+    manufacturer: device.manufacturer || "",
+    model: device.model || "",
+    sw_version: device.sw_version || "",
+  };
+};
+
+const buildHaSnapshotWithClient = async (client, ieee) => {
+  const [devices, entities] = await Promise.all([
+    client.request("config/device_registry/list"),
+    client.request("config/entity_registry/list"),
+  ]);
+  const device = matchDeviceByIeee(devices || [], ieee);
+  if (!device) {
+    return { device: null, entities: [], baseSuffix: "" };
+  }
+  const deviceEntities = (entities || []).filter((entry) => entry.device_id === device.id);
+  const uniqueIds = deviceEntities.map((entry) => entry.unique_id).filter(Boolean);
+  let baseSuffix = findCommonSuffix(uniqueIds);
+  if (!baseSuffix.startsWith("_")) {
+    baseSuffix = "";
+  }
+  const snapshotEntities = deviceEntities.map((entry) => ({
+    entity_id: entry.entity_id,
+    unique_id: entry.unique_id,
+    unique_id_base: baseSuffix ? entry.unique_id.slice(0, -baseSuffix.length) : entry.unique_id,
+    original_name: entry.original_name || "",
+    platform: entry.platform || "",
+    domain: entry.entity_id.split(".")[0] || "",
+  }));
+  return {
+    device: formatHaDevice(device),
+    entities: snapshotEntities,
+    baseSuffix,
+  };
+};
+
+const buildHaSnapshot = async (ieee) => {
+  return withHaClient((client) => buildHaSnapshotWithClient(client, ieee));
+};
+
+const saveHaSnapshotForIeee = async (ieee) => {
+  const snapshot = await buildHaSnapshot(ieee);
+  if (!snapshot.device) {
+    throw new Error("Device not found in Home Assistant");
+  }
+  haSnapshots[ieee] = {
+    updatedAt: nowIso(),
+    ieee,
+    ...snapshot,
+  };
+  saveHaSnapshots();
+  return haSnapshots[ieee];
+};
+
+const buildHaDeviceInfoWithClient = async (client, ieee) => {
+  const [devices, entities] = await Promise.all([
+    client.request("config/device_registry/list"),
+    client.request("config/entity_registry/list"),
+  ]);
+  const device = matchDeviceByIeee(devices || [], ieee);
+  const currentDevice = formatHaDevice(device);
+  const currentEntities = device
+    ? (entities || [])
+        .filter((entry) => entry.device_id === device.id)
+        .map((entry) => ({
+          entity_id: entry.entity_id,
+          unique_id: entry.unique_id,
+          original_name: entry.original_name || "",
+          platform: entry.platform || "",
+        }))
+    : [];
+
+  const snapshot = haSnapshots[ieee] || null;
+  const currentEntityById = new Map(currentEntities.map((entry) => [entry.entity_id, entry]));
+  const currentEntityByBase = new Map();
+  const currentSuffix = findCommonSuffix(currentEntities.map((entry) => entry.unique_id).filter(Boolean));
+  const suffix = currentSuffix && currentSuffix.startsWith("_") ? currentSuffix : "";
+  for (const entry of currentEntities) {
+    const base = suffix ? entry.unique_id.slice(0, -suffix.length) : entry.unique_id;
+    if (base) {
+      currentEntityByBase.set(base, entry);
+    }
+  }
+
+  const restorePlan = [];
+  if (snapshot && Array.isArray(snapshot.entities)) {
+    for (const saved of snapshot.entities) {
+      const baseKey = saved.unique_id_base || saved.unique_id;
+      const current =
+        (baseKey && currentEntityByBase.get(baseKey)) ||
+        currentEntities.find((entry) => entry.unique_id === saved.unique_id) ||
+        currentEntities.find((entry) => entry.original_name === saved.original_name) ||
+        null;
+      const currentEntityId = current ? current.entity_id : null;
+      let status = "missing";
+      if (currentEntityId) {
+        status = currentEntityId === saved.entity_id ? "ok" : "rename";
+        if (currentEntityById.has(saved.entity_id) && saved.entity_id !== currentEntityId) {
+          status = "conflict";
+        }
+      }
+      restorePlan.push({
+        desired_entity_id: saved.entity_id,
+        current_entity_id: currentEntityId,
+        unique_id: saved.unique_id,
+        unique_id_base: saved.unique_id_base,
+        status,
+      });
+    }
+  }
+
+  const deviceIdMap =
+    snapshot && snapshot.device && currentDevice ? { from: snapshot.device.id, to: currentDevice.id } : null;
+
+  return {
+    snapshot,
+    currentDevice,
+    currentEntities,
+    restorePlan,
+    deviceIdMap,
+  };
+};
+
+const buildHaDeviceInfo = async (ieee) => {
+  return withHaClient((client) => buildHaDeviceInfoWithClient(client, ieee));
+};
+
+const restoreHaEntityIds = async (ieee) => {
+  return withHaClient(async (client) => {
+    const info = await buildHaDeviceInfoWithClient(client, ieee);
+    const updates = [];
+    for (const item of info.restorePlan || []) {
+      if (item.status !== "rename") {
+        continue;
+      }
+      updates.push({
+        current: item.current_entity_id,
+        desired: item.desired_entity_id,
+      });
+    }
+    const results = [];
+    for (const entry of updates) {
+      const result = await client.request("config/entity_registry/update", {
+        entity_id: entry.current,
+        new_entity_id: entry.desired,
+      });
+      results.push({ current: entry.current, desired: entry.desired, result });
+    }
+    return { updates: results };
+  });
+};
+
+const scheduleHaRestore = (ieee, reason) => {
+  if (!ieee) {
+    return;
+  }
+  const { url, token } = getHaConfig();
+  if (!url || !token) {
+    return;
+  }
+  const existing = pendingHaRestores.get(ieee);
+  if (existing) {
+    existing.attempts = 0;
+    existing.nextAttemptAt = Date.now() + HA_RESTORE_RETRY_MS;
+    existing.reason = reason || existing.reason;
+    return;
+  }
+  pendingHaRestores.set(ieee, {
+    ieee,
+    attempts: 0,
+    nextAttemptAt: Date.now() + HA_RESTORE_RETRY_MS,
+    reason: reason || "rename",
+  });
+};
+
+const processHaRestores = async () => {
+  const now = Date.now();
+  for (const [ieee, entry] of pendingHaRestores.entries()) {
+    if (entry.nextAttemptAt > now) {
+      continue;
+    }
+    entry.attempts += 1;
+    entry.nextAttemptAt = now + HA_RESTORE_RETRY_MS;
+    try {
+      const result = await restoreHaEntityIds(ieee);
+      const updates = result.updates || [];
+      if (updates.length > 0) {
+        pushActivity({
+          time: nowIso(),
+          type: "rename",
+          message: `HA - Entity IDs restored for ${ieee} (${updates.length} updates)`,
+        });
+      }
+      pendingHaRestores.delete(ieee);
+    } catch (error) {
+      if (entry.attempts >= HA_RESTORE_MAX_ATTEMPTS) {
+        pendingHaRestores.delete(ieee);
+        pushActivity({
+          time: nowIso(),
+          type: "log",
+          message: `HA - Failed to restore entity IDs for ${ieee}: ${error.message}`,
+        });
+      }
+    }
+  }
+};
+
+const fetchHaAutomations = async (client) => {
+  const result = await client.request("config/automation/config");
+  if (Array.isArray(result)) {
+    return result;
+  }
+  if (result && Array.isArray(result.config)) {
+    return result.config;
+  }
+  return [];
+};
+
+const normalizeAutomationEntry = (entry) => {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  if (entry.id && entry.config && typeof entry.config === "object") {
+    return { id: entry.id, config: entry.config };
+  }
+  if (entry.id && entry.trigger) {
+    return { id: entry.id, config: entry };
+  }
+  if (entry.alias && entry.trigger) {
+    return { id: entry.id || entry.alias, config: entry };
+  }
+  return null;
+};
+
+const rewriteDeviceIds = (value, deviceIdMap) => {
+  if (Array.isArray(value)) {
+    let changed = false;
+    let hits = 0;
+    const next = value.map((item) => {
+      const result = rewriteDeviceIds(item, deviceIdMap);
+      if (result.changed) {
+        changed = true;
+        hits += result.hits;
+      }
+      return result.value;
+    });
+    return { value: next, changed, hits };
+  }
+  if (!value || typeof value !== "object") {
+    return { value, changed: false, hits: 0 };
+  }
+  let changed = false;
+  let hits = 0;
+  const next = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (key === "device_id" && typeof entry === "string" && deviceIdMap.has(entry)) {
+      next[key] = deviceIdMap.get(entry);
+      changed = true;
+      hits += 1;
+      continue;
+    }
+    const result = rewriteDeviceIds(entry, deviceIdMap);
+    next[key] = result.value;
+    if (result.changed) {
+      changed = true;
+      hits += result.hits;
+    }
+  }
+  return { value: next, changed, hits };
+};
+
+const buildDeviceIdMapWithClient = async (client) => {
+  const devices = await client.request("config/device_registry/list");
+  const map = new Map();
+  const details = [];
+  for (const [ieee, snapshot] of Object.entries(haSnapshots)) {
+    if (!snapshot || !snapshot.device || !snapshot.device.id) {
+      continue;
+    }
+    const current = matchDeviceByIeee(devices || [], ieee);
+    if (!current || !current.id) {
+      continue;
+    }
+    if (current.id === snapshot.device.id) {
+      continue;
+    }
+    map.set(snapshot.device.id, current.id);
+    details.push({
+      ieee,
+      from: snapshot.device.id,
+      to: current.id,
+      name: current.name || current.name_by_user || "",
+    });
+  }
+  return { map, details };
+};
+
+const buildDeviceIdMap = async () => {
+  return withHaClient((client) => buildDeviceIdMapWithClient(client));
+};
+
+const previewAutomationRewrite = async () => {
+  return withHaClient(async (client) => {
+    const automationRaw = await fetchHaAutomations(client);
+    const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean);
+    const { map, details } = await buildDeviceIdMapWithClient(client);
+    let affectedAutomations = 0;
+    let replacementHits = 0;
+    for (const automation of automations) {
+      const result = rewriteDeviceIds(automation.config, map);
+      if (result.changed) {
+        affectedAutomations += 1;
+        replacementHits += result.hits;
+      }
+    }
+    return {
+      automations: automations.length,
+      affectedAutomations,
+      replacementHits,
+      deviceIdMap: details,
+    };
+  });
+};
+
+const applyAutomationRewrite = async () => {
+  return withHaClient(async (client) => {
+    const automationRaw = await fetchHaAutomations(client);
+    const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean);
+    const { map, details } = await buildDeviceIdMapWithClient(client);
+    let updated = 0;
+    let replacementHits = 0;
+    for (const automation of automations) {
+      const result = rewriteDeviceIds(automation.config, map);
+      if (!result.changed) {
+        continue;
+      }
+      await client.request("config/automation/update", {
+        id: automation.id,
+        config: result.value,
+      });
+      updated += 1;
+      replacementHits += result.hits;
+    }
+    return {
+      updated,
+      replacementHits,
+      deviceIdMap: details,
+    };
+  });
 };
 
 const rebuildDeviceIndex = () => {
@@ -587,6 +1131,7 @@ const updateMigrations = () => {
             type: "rename",
             message: `${target.label} - Rename command sent: ${current} -> ${desired}`,
           });
+          scheduleHaRestore(ieee, "auto-rename");
         }
         migration.renameSent = true;
       }
@@ -795,6 +1340,7 @@ class Backend {
 
 loadMappings();
 loadInstallCodes();
+loadHaSnapshots();
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -936,6 +1482,91 @@ app.post("/api/install-codes/apply", (req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/api/ha/device", async (req, res) => {
+  const ieee = typeof req.query.ieee === "string" ? req.query.ieee.trim() : "";
+  if (!ieee) {
+    res.status(400).json({ error: "Missing IEEE address" });
+    return;
+  }
+  const { url, token } = getHaConfig();
+  if (!url || !token) {
+    res.status(400).json({ error: "Home Assistant is not configured" });
+    return;
+  }
+  try {
+    const info = await buildHaDeviceInfo(ieee);
+    res.json({ ok: true, info });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Failed to load HA device info" });
+  }
+});
+
+app.post("/api/ha/snapshot", async (req, res) => {
+  const { ieee } = req.body || {};
+  if (!ieee || typeof ieee !== "string") {
+    res.status(400).json({ error: "Missing IEEE address" });
+    return;
+  }
+  const { url, token } = getHaConfig();
+  if (!url || !token) {
+    res.status(400).json({ error: "Home Assistant is not configured" });
+    return;
+  }
+  try {
+    const snapshot = await saveHaSnapshotForIeee(ieee);
+    res.json({ ok: true, snapshot });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Failed to save HA snapshot" });
+  }
+});
+
+app.post("/api/ha/restore-entity-ids", async (req, res) => {
+  const { ieee } = req.body || {};
+  if (!ieee || typeof ieee !== "string") {
+    res.status(400).json({ error: "Missing IEEE address" });
+    return;
+  }
+  const { url, token } = getHaConfig();
+  if (!url || !token) {
+    res.status(400).json({ error: "Home Assistant is not configured" });
+    return;
+  }
+  try {
+    const result = await restoreHaEntityIds(ieee);
+    res.json({ ok: true, result });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Failed to restore entity IDs" });
+  }
+});
+
+app.post("/api/ha/automations/preview", async (req, res) => {
+  const { url, token } = getHaConfig();
+  if (!url || !token) {
+    res.status(400).json({ error: "Home Assistant is not configured" });
+    return;
+  }
+  try {
+    const result = await previewAutomationRewrite();
+    res.json({ ok: true, result });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Failed to preview automations" });
+  }
+});
+
+app.post("/api/ha/automations/rewrite", async (req, res) => {
+  const { url, token } = getHaConfig();
+  if (!url || !token) {
+    res.status(400).json({ error: "Home Assistant is not configured" });
+    return;
+  }
+  try {
+    const result = await applyAutomationRewrite();
+    res.json({ ok: true, result });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Failed to rewrite automations" });
+  }
+});
+
 app.post("/api/pairing", (req, res) => {
   const { backendId, enable } = req.body || {};
   if (!backendId || typeof backendId !== "string") {
@@ -1040,6 +1671,7 @@ app.post("/api/mappings/apply-one", (req, res) => {
     type: "rename",
     message: `${backend.label} - Rename command sent: ${current} -> ${desired}`,
   });
+  scheduleHaRestore(ieee, "manual-rename");
   res.json({ ok: true, applied: true });
 });
 
@@ -1073,6 +1705,9 @@ app.post("/api/mappings/rename-to", (req, res) => {
       message: `${backend.label} - Rename command sent: ${current} -> ${desired}`,
     });
     sent += 1;
+  }
+  if (sent > 0) {
+    scheduleHaRestore(ieee, "manual-rename");
   }
   res.json({ ok: true, sent });
 });
@@ -1163,20 +1798,30 @@ const startMigration = (ieee, force) => {
   return { status: "started" };
 };
 
-app.post("/api/migrate", (req, res) => {
+app.post("/api/migrate", async (req, res) => {
   const { ieee } = req.body || {};
   if (!ieee || typeof ieee !== "string") {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
   }
+  try {
+    await saveHaSnapshotForIeee(ieee);
+  } catch (error) {
+    console.warn(`[HA] Snapshot failed for ${ieee}: ${error.message}`);
+  }
   res.json(startMigration(ieee, false));
 });
 
-app.post("/api/migrate/force", (req, res) => {
+app.post("/api/migrate/force", async (req, res) => {
   const { ieee } = req.body || {};
   if (!ieee || typeof ieee !== "string") {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
+  }
+  try {
+    await saveHaSnapshotForIeee(ieee);
+  } catch (error) {
+    console.warn(`[HA] Snapshot failed for ${ieee}: ${error.message}`);
   }
   res.json(startMigration(ieee, true));
 });
@@ -1211,3 +1856,7 @@ for (const backend of backends) {
 if (backends.length === 0) {
   console.warn("No backends configured. Set server_one/server_two/server_three in options.");
 }
+
+setInterval(() => {
+  processHaRestores();
+}, 5000);

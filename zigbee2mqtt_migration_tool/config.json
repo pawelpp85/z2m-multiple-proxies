@@ -1,6 +1,6 @@
 {
   "name": "Zigbee2MQTT Migration tool",
-  "version": "1.0.1",
+  "version": "1.0.2b1",
   "slug": "zigbee2mqtt_migration_tool",
   "description": "Migration helper that remembers IEEE addresses and device names across multiple Zigbee2MQTT instances.",
   "url": "https://github.com/pawelpp85/z2m-multiple-proxies",
@@ -33,7 +33,9 @@
     "label_one": "str",
     "label_two": "str",
     "label_three": "str",
-    "label_four": "str"
+    "label_four": "str",
+    "homeassistant_url": "url?",
+    "homeassistant_token": "str?"
   },
   "options": {
     "server_one": "http://127.0.0.1:8099",
@@ -47,6 +49,8 @@
     "label_one": "One",
     "label_two": "Two",
     "label_three": "Three",
-    "label_four": "Original"
+    "label_four": "Original",
+    "homeassistant_url": "http://homeassistant.local:8123",
+    "homeassistant_token": ""
   }
 }

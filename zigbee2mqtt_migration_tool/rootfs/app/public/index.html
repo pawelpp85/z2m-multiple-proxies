@@ -37,6 +37,10 @@
               <p><strong>Reset mappings</strong> reloads current names from all instances and removes mappings for devices not present in any instance.</p>
               <p><strong>Apply mappings</strong> checks for mismatched names and lets you confirm proposed changes.</p>
             </div>
+            <div class="instruction-block">
+              <h4>Home Assistant IDs</h4>
+              <p>Use the <strong>HA IDs</strong> button to capture a snapshot before migration, restore entity_id values after rename, and preview automation device_id rewrites.</p>
+            </div>
           </details>
         </div>
         <div class="status-card" id="pairingStatus">
@@ -124,6 +128,45 @@
         <div class="modal-actions">
           <button class="secondary" id="mappingCancel">Cancel</button>
           <button class="secondary primary" id="mappingApply">Change</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal hidden" id="haModal">
+      <div class="modal-card ha-modal-card">
+        <div class="ha-modal-header">
+          <div>
+            <h3>Home Assistant IDs</h3>
+            <p class="subtitle" id="haDeviceTitle">Loading...</p>
+          </div>
+          <button class="ghost" id="haClose">Close</button>
+        </div>
+        <div class="ha-section">
+          <h4>Status</h4>
+          <div class="ha-info" id="haStatus">Loading...</div>
+        </div>
+        <div class="ha-section">
+          <h4>Snapshot</h4>
+          <div class="ha-info" id="haSnapshotInfo">-</div>
+          <div class="ha-actions">
+            <button class="secondary" id="haSnapshot">Save snapshot</button>
+            <button class="secondary primary" id="haRestore">Restore entity IDs</button>
+          </div>
+        </div>
+        <div class="ha-section">
+          <h4>Current device</h4>
+          <div class="ha-info" id="haDeviceInfo">-</div>
+        </div>
+        <div class="ha-section">
+          <h4>Entities</h4>
+          <div class="ha-table" id="haEntityInfo"></div>
+        </div>
+        <div class="ha-section">
+          <h4>Automations</h4>
+          <div class="ha-info" id="haAutomationInfo">-</div>
+          <div class="ha-actions">
+            <button class="secondary" id="haAutomationPreview">Preview device_id rewrite</button>
+            <button class="secondary danger" id="haAutomationApply" disabled>Rewrite device IDs</button>
+          </div>
         </div>
       </div>
     </div>

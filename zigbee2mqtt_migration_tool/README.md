@@ -26,22 +26,29 @@ Apply mappings checks for mismatched names and lets you confirm proposed changes
 - Migration button to remove devices from an instance during pairing
 - Force migration flow with blocklist handling and auto-rename
 - Apply mappings workflow with confirmation dialog for mismatches
+- Home Assistant snapshot + entity_id restore workflow (optional, via HA WebSocket API)
+- Optional automation device_id rewrite preview/apply (manual action)
 
 ## UI
 - Device mappings table with sorting, search (name + IEEE), and instance filters
 - Pairing control dropdown when no instance is in pairing mode (disable button when active)
 - Install code editor with QR scan (when supported by the browser)
 - Unassigned devices are kept visible and marked offline
+- HA IDs modal with snapshot status, entity_id plan, and automation rewrite preview
 
 ## Configuration
 Use the same instance URLs and optional tokens as the aggregated UI add-on:
 - `server_one..server_four`
 - `auth_token_one..auth_token_four`
 - `label_one..label_four`
+Optional Home Assistant integration:
+- `homeassistant_url` (e.g. `http://homeassistant.local:8123`)
+- `homeassistant_token` (Long-lived access token)
 
 ## Notes
 - Install code “Add to…” sends `bridge/request/install_code/add` to the selected instance.
 - QR scanning requires `BarcodeDetector` support in the browser.
+- If Home Assistant integration is configured, clicking **Migrate** will attempt to capture a pre-migration snapshot for entity_id restore.
 
 ## Development workflow
 After any change, bump the next beta version (e.g. `1.0.1b2`), commit, and run `git push`.
