@@ -1390,11 +1390,12 @@ const describeMigration = (migration) => {
   if (!migration) {
     return null;
   }
+  const pairingHint = "Enable device pairing now";
   if (!migration.leftOld) {
     return "Removing from source";
   }
   if (migration.configuring && !migration.configured) {
-    return "Configuring on target";
+    return `Configuring on target · ${pairingHint}`;
   }
   if (migration.configured && !migration.renameSent) {
     return "Configuration complete";
@@ -1402,7 +1403,7 @@ const describeMigration = (migration) => {
   if (migration.renameSent && !migration.blocklistRemoved && migration.force) {
     return "Finishing migration";
   }
-  return "Migrating";
+  return `Migrating · ${pairingHint}`;
 };
 
 const buildDeviceList = () => {
@@ -2347,6 +2348,10 @@ const startMigration = (ieee, force) => {
   const entry = deviceIndex.get(ieee);
   if (!entry) {
     return { status: "not_found" };
+  }
+  const pairingBackend = getActivePairingBackend();
+  if (pairingBackend && entry.namesByBackend && entry.namesByBackend[pairingBackend.id]) {
+    return { status: "blocked_pairing" };
   }
   const installCode = installCodes[ieee];
   if (installCode) {

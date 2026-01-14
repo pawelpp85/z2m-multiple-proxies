@@ -919,6 +919,8 @@ const handleAction = async (action, row) => {
     const result = await postJson("api/migrate", { ieee });
     if (result.status === "recent") {
       showToast("Migrate clicked a moment ago");
+    } else if (result.status === "blocked_pairing") {
+      showToast("Stop pairing on this instance before migrating");
     } else {
       showToast(`Migrate: ${result.status || "sent"}`);
     }
@@ -930,6 +932,8 @@ const handleAction = async (action, row) => {
     const result = await postJson("api/migrate/force", { ieee });
     if (result.status === "recent") {
       showToast("Force migration clicked a moment ago");
+    } else if (result.status === "blocked_pairing") {
+      showToast("Stop pairing on this instance before migrating");
     } else {
       showToast(`Force migration: ${result.status || "sent"}`);
     }

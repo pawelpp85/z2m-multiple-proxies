@@ -368,6 +368,20 @@ h1 {
   font-size: 11px;
   color: #9fc5ff;
   font-weight: 600;
+  padding-left: 4px;
+  animation: migration-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes migration-pulse {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.5;
+  }
 }
 
 .install-cell {
