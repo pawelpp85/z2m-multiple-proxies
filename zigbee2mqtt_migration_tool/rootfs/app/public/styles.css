@@ -776,13 +776,13 @@ button:disabled {
   display: grid;
   gap: 6px;
   font-size: 11px;
-  max-height: 220px;
+  max-height: 200px;
   overflow: auto;
 }
 
 .ha-row {
   display: grid;
-  grid-template-columns: 1.1fr 1.4fr 0.6fr;
+  grid-template-columns: 1.1fr 1.2fr 1fr 1fr 0.5fr;
   gap: 8px;
   padding: 4px 6px;
   border-radius: 10px;

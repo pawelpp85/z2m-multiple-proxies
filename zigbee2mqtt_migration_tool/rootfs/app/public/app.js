@@ -35,6 +35,7 @@ const elements = {
   haEntityInfo: document.getElementById("haEntityInfo"),
   haAutomationInfo: document.getElementById("haAutomationInfo"),
   haAutomationList: document.getElementById("haAutomationList"),
+  haAutomationDeviceInfo: document.getElementById("haAutomationDeviceInfo"),
   haAutomationPreview: document.getElementById("haAutomationPreview"),
   haAutomationApply: document.getElementById("haAutomationApply"),
   haAutomationDeviceApply: document.getElementById("haAutomationDeviceApply"),
@@ -54,6 +55,7 @@ let mappingCurrent = null;
 let isEditing = false;
 let haModalIeee = null;
 let haAutomationPreview = null;
+let haAutomationDevicePreview = null;
 let lastHaInfo = null;
 let haBaseUrl = "";
 const scanAvailable =
@@ -451,6 +453,7 @@ const renderHaInfo = (payload) => {
     elements.haEntityInfo.innerHTML = "";
     elements.haAutomationInfo.textContent = "-";
     elements.haAutomationList.innerHTML = "";
+    elements.haAutomationDeviceInfo.textContent = "-";
     elements.haSnapshot.disabled = true;
     elements.haRestore.disabled = true;
     elements.haAutomationPreview.disabled = true;
@@ -515,6 +518,8 @@ const renderHaInfo = (payload) => {
       `<div class="ha-row header">
         <div>Saved entity_id</div>
         <div>Current entity_id</div>
+        <div>Saved reg_id</div>
+        <div>Current reg_id</div>
         <div>Status</div>
       </div>`,
     ];
@@ -525,6 +530,8 @@ const renderHaInfo = (payload) => {
           <div class="ha-row">
             <div class="mono">${item.desired_entity_id || "-"}</div>
             <div class="mono">${item.current_entity_id || "-"}</div>
+            <div class="mono">${item.desired_registry_id || "-"}</div>
+            <div class="mono">${item.current_registry_id || "-"}</div>
             <div class="ha-status ${status}">${status}</div>
           </div>
         `);
@@ -535,6 +542,8 @@ const renderHaInfo = (payload) => {
           <div class="ha-row">
             <div class="mono">-</div>
             <div class="mono">${item.entity_id || "-"}</div>
+            <div class="mono">-</div>
+            <div class="mono">${item.entity_registry_id || "-"}</div>
             <div class="ha-status ok">current</div>
           </div>
         `);
@@ -600,6 +609,18 @@ const renderHaInfo = (payload) => {
     elements.haAutomationInfo.textContent = "No automation preview run yet.";
     elements.haAutomationList.innerHTML = "";
   }
+
+  if (haAutomationDevicePreview) {
+    const lines = [
+      `This device: affected ${haAutomationDevicePreview.affectedAutomations} automations`,
+      `Replacements: ${haAutomationDevicePreview.replacementHits}`,
+      `Device ID replacements: ${haAutomationDevicePreview.deviceHits || 0}`,
+      `Entity ID replacements: ${haAutomationDevicePreview.entityHits || 0}`,
+    ];
+    elements.haAutomationDeviceInfo.textContent = lines.join("\n");
+  } else {
+    elements.haAutomationDeviceInfo.textContent = "No per-device preview run yet.";
+  }
   elements.haAutomationApply.disabled = !haAutomationPreview || haAutomationPreview.affectedAutomations === 0;
   elements.haSnapshot.disabled = false;
   elements.haAutomationPreview.disabled = false;
@@ -609,6 +630,7 @@ const renderHaInfo = (payload) => {
 const openHaModal = async (ieee, label) => {
   haModalIeee = ieee;
   haAutomationPreview = null;
+  haAutomationDevicePreview = null;
   elements.haDeviceTitle.textContent = label ? `${label} (${ieee})` : ieee;
   elements.haStatus.textContent = "Loading...";
   elements.haSnapshotInfo.textContent = "-";
@@ -616,6 +638,7 @@ const openHaModal = async (ieee, label) => {
   elements.haEntityInfo.innerHTML = "";
   elements.haAutomationInfo.textContent = "No automation preview run yet.";
   elements.haAutomationList.innerHTML = "";
+  elements.haAutomationDeviceInfo.textContent = "No per-device preview run yet.";
   elements.haSnapshot.disabled = true;
   elements.haRestore.disabled = true;
   elements.haAutomationPreview.disabled = true;
@@ -1206,7 +1229,19 @@ elements.haAutomationDeviceApply.addEventListener("click", async () => {
     showToast("Select a device first");
     return;
   }
-  if (!confirm("Fix automations for this device now?")) {
+  if (!haAutomationDevicePreview) {
+    const preview = await postJson("api/ha/automations/preview-device", { ieee: haModalIeee });
+    if (preview.error) {
+      showToast(preview.error);
+      return;
+    }
+    haAutomationDevicePreview = preview.result || null;
+    renderHaInfo({ info: lastHaInfo, haUrl: preview.haUrl });
+  }
+  const detail = haAutomationDevicePreview
+    ? `Automations: ${haAutomationDevicePreview.affectedAutomations}, replacements: ${haAutomationDevicePreview.replacementHits}`
+    : "Proceed?";
+  if (!confirm(`Fix automations for this device now?\n${detail}`)) {
     return;
   }
   const result = await postJson("api/ha/automations/rewrite-device", { ieee: haModalIeee });
@@ -1214,8 +1249,9 @@ elements.haAutomationDeviceApply.addEventListener("click", async () => {
     showToast(result.error);
     return;
   }
-  showToast("Automations updated for device");
+  showToast(detail);
   haAutomationPreview = null;
+  haAutomationDevicePreview = null;
   openHaModal(haModalIeee);
 });
 

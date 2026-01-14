@@ -503,32 +503,35 @@ const buildHaDeviceInfoWithClient = async (client, ieee) => {
     }
   }
 
-  const restorePlan = [];
-  if (snapshot && Array.isArray(snapshot.entities)) {
-    for (const saved of snapshot.entities) {
-      const baseKey = saved.unique_id_base || saved.unique_id;
-      const current =
-        (baseKey && currentEntityByBase.get(baseKey)) ||
-        currentEntities.find((entry) => entry.unique_id === saved.unique_id) ||
-        currentEntities.find((entry) => entry.original_name === saved.original_name) ||
-        null;
-      const currentEntityId = current ? current.entity_id : null;
-      let status = "missing";
-      if (currentEntityId) {
-        status = currentEntityId === saved.entity_id ? "ok" : "rename";
-        if (currentEntityById.has(saved.entity_id) && saved.entity_id !== currentEntityId) {
-          status = "conflict";
+    const restorePlan = [];
+    if (snapshot && Array.isArray(snapshot.entities)) {
+      for (const saved of snapshot.entities) {
+        const baseKey = saved.unique_id_base || saved.unique_id;
+        const current =
+          (baseKey && currentEntityByBase.get(baseKey)) ||
+          currentEntities.find((entry) => entry.unique_id === saved.unique_id) ||
+          currentEntities.find((entry) => entry.original_name === saved.original_name) ||
+          null;
+        const currentEntityId = current ? current.entity_id : null;
+        const currentRegistryId = current ? current.entity_registry_id : null;
+        let status = "missing";
+        if (currentEntityId) {
+          status = currentEntityId === saved.entity_id ? "ok" : "rename";
+          if (currentEntityById.has(saved.entity_id) && saved.entity_id !== currentEntityId) {
+            status = "conflict";
+          }
         }
+        restorePlan.push({
+          desired_entity_id: saved.entity_id,
+          current_entity_id: currentEntityId,
+          desired_registry_id: saved.entity_registry_id || null,
+          current_registry_id: currentRegistryId,
+          unique_id: saved.unique_id,
+          unique_id_base: saved.unique_id_base,
+          status,
+        });
       }
-      restorePlan.push({
-        desired_entity_id: saved.entity_id,
-        current_entity_id: currentEntityId,
-        unique_id: saved.unique_id,
-        unique_id_base: saved.unique_id_base,
-        status,
-      });
     }
-  }
 
   const deviceIdMap =
     snapshot && snapshot.device && currentDevice ? { from: snapshot.device.id, to: currentDevice.id } : null;
@@ -1094,6 +1097,51 @@ const applyAutomationRewriteForDevice = async (ieee) => {
       replacementHits,
       deviceIdMap: deviceMapEntries,
       entityIdMap: entityInfo.details,
+    };
+  });
+};
+
+const previewAutomationRewriteForDevice = async (ieee) => {
+  return withHaClient(async (client) => {
+    const automationRaw = await fetchHaAutomations(client);
+    const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean);
+    const deviceMap = await buildDeviceIdMapWithClient(client);
+    const entityInfo = await buildEntityRegistryIdMapWithClient(client, ieee);
+    const deviceMapEntries = deviceMap.details.filter((entry) => entry.ieee === ieee);
+    const deviceIdMap = new Map(deviceMapEntries.map((entry) => [entry.from, entry.to]));
+    const entityIdMap = entityInfo.map;
+    const entityInfoScoped = {
+      ...entityInfo,
+      snapshotDeviceIds: new Set(entityInfo.snapshotDeviceIds),
+    };
+    let affectedAutomations = 0;
+    let replacementHits = 0;
+    let deviceHits = 0;
+    let entityHits = 0;
+    const affected = [];
+    for (const automation of automations) {
+      const result = rewriteAutomationIds(automation.config, deviceIdMap, entityIdMap, entityInfoScoped);
+      if (result.changed) {
+        affectedAutomations += 1;
+        replacementHits += result.hits;
+        deviceHits += result.deviceHits;
+        entityHits += result.entityHits;
+        affected.push({
+          id: automation.id || "",
+          alias: automation.alias || "",
+          hits: result.hits,
+        });
+      }
+    }
+    return {
+      automations: automations.length,
+      affectedAutomations,
+      replacementHits,
+      deviceHits,
+      entityHits,
+      deviceIdMap: deviceMapEntries,
+      entityIdMap: entityInfo.details,
+      affected,
     };
   });
 };
@@ -1921,6 +1969,25 @@ app.post("/api/ha/automations/rewrite-device", async (req, res) => {
     res.json({ ok: true, result });
   } catch (error) {
     res.status(500).json({ error: error.message || "Failed to rewrite automations for device" });
+  }
+});
+
+app.post("/api/ha/automations/preview-device", async (req, res) => {
+  const { ieee } = req.body || {};
+  if (!ieee || typeof ieee !== "string") {
+    res.status(400).json({ error: "Missing IEEE address" });
+    return;
+  }
+  const { url, token } = getHaConfig();
+  if (!url || !token) {
+    res.status(400).json({ error: "Home Assistant is not configured" });
+    return;
+  }
+  try {
+    const result = await previewAutomationRewriteForDevice(ieee);
+    res.json({ ok: true, result, haUrl: url });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Failed to preview automations for device" });
   }
 });
 
