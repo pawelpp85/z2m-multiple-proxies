@@ -124,6 +124,21 @@ h1 {
   font-weight: 600;
 }
 
+.pairing-control {
+  margin-top: 10px;
+}
+
+.pairing-control select {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  font-family: var(--display);
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ink);
+}
+
 .overview {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

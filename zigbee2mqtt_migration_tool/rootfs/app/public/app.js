@@ -3,6 +3,7 @@ const logsUrl = "api/logs";
 
 const elements = {
   pairingStatus: document.getElementById("pairingStatus"),
+  pairingControl: document.getElementById("pairingControl"),
   overviewDevices: document.getElementById("overviewDevices"),
   overviewOnline: document.getElementById("overviewOnline"),
   overviewRouter: document.getElementById("overviewRouter"),
@@ -107,7 +108,7 @@ const renderPairing = (pairing) => {
   const body = elements.pairingStatus.querySelector(".status-body");
   elements.pairingStatus.classList.remove("single", "multi");
   if (!pairing || pairing.length === 0) {
-    body.textContent = "Pairing is OFF";
+    body.textContent = "Pairing is disabled";
     return;
   }
   const message = pairing
@@ -118,11 +119,25 @@ const renderPairing = (pairing) => {
     .join(", ");
   if (pairing.length === 1) {
     elements.pairingStatus.classList.add("single");
-    body.innerHTML = `Pairing is on<br>${message}`;
+    body.innerHTML = `Pairing enabled<br>${message}`;
   } else {
     elements.pairingStatus.classList.add("multi");
-    body.innerHTML = `Pairing is on<br>${message}`;
+    body.innerHTML = `Pairing enabled<br>${message}`;
   }
+};
+
+const renderPairingControl = (backends) => {
+  if (!elements.pairingControl) {
+    return;
+  }
+  const options = ['<option value="" selected>Pairing control…</option>'];
+  (backends || []).forEach((backend) => {
+    options.push(
+      `<option value="${backend.id}:on">${backend.label} — Enable (10 min, all)</option>`,
+    );
+    options.push(`<option value="${backend.id}:off">${backend.label} — Disable</option>`);
+  });
+  elements.pairingControl.innerHTML = options.join("");
 };
 
 const renderOverview = (overview) => {
@@ -399,6 +414,7 @@ const loadState = async () => {
     lastState = data;
     renderOverview(data.overview || {});
     renderPairing(data.pairing || []);
+    renderPairingControl(data.backends || []);
     renderInstanceFilters(data.backends || []);
     renderTable(data.devices || [], data.migrationAvailable, data.backends || []);
     elements.mappingCount.textContent = `${data.mappingsCount || 0} mappings`;
@@ -780,6 +796,26 @@ elements.applyMappings.addEventListener("click", async () => {
   }
   mappingQueue = mismatches;
   showNextMapping();
+});
+
+elements.pairingControl?.addEventListener("change", async (event) => {
+  const select = event.target;
+  const value = select.value;
+  if (!value) {
+    return;
+  }
+  const [backendId, action] = value.split(":");
+  const enable = action === "on";
+  const result = await postJson("api/pairing", { backendId, enable });
+  if (result.error) {
+    showToast(result.error);
+  } else {
+    showToast(
+      enable ? `Pairing enabled for ${result.label} (10 min)` : `Pairing disabled for ${result.label}`,
+    );
+  }
+  select.value = "";
+  loadState();
 });
 
 const showNextMapping = () => {

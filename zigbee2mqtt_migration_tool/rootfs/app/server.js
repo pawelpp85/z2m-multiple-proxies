@@ -936,6 +936,32 @@ app.post("/api/install-codes/apply", (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/pairing", (req, res) => {
+  const { backendId, enable } = req.body || {};
+  if (!backendId || typeof backendId !== "string") {
+    res.status(400).json({ error: "Missing backend id" });
+    return;
+  }
+  const backend = backends.find((entry) => entry.id === backendId);
+  if (!backend) {
+    res.status(404).json({ error: "Backend not found" });
+    return;
+  }
+  const time = enable ? 600 : 0;
+  backend.send({
+    topic: "bridge/request/permit_join",
+    payload: {
+      time,
+    },
+  });
+  pushActivity({
+    time: nowIso(),
+    type: "migration",
+    message: `${backend.label} - Pairing command sent (${enable ? "enable 10 min" : "disable"})`,
+  });
+  res.json({ ok: true, label: backend.label });
+});
+
 app.post("/api/reset", (req, res) => {
   mappings = {};
   try {
