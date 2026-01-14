@@ -256,11 +256,29 @@ h1 {
 }
 
 .coordinators .row {
-  grid-template-columns: 0.8fr 0.9fr 1.2fr 0.8fr 1.2fr;
+  grid-template-columns: 0.8fr 0.9fr 1.2fr 0.8fr 1.2fr 1.4fr 0.6fr 0.5fr;
 }
 
 .coordinator-row .mono {
   font-size: 11px;
+}
+
+.coordinator-row.changed {
+  background: rgba(160, 20, 30, 0.28);
+  border-color: rgba(255, 86, 86, 0.6);
+  animation: pulse-coordinator 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-coordinator {
+  0% {
+    box-shadow: 0 0 0 rgba(255, 86, 86, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(255, 86, 86, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(255, 86, 86, 0.2);
+  }
 }
 
 .row {

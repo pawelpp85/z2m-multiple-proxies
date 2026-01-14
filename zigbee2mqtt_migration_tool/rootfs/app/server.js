@@ -8,6 +8,7 @@ const OPTIONS_PATH = "/data/options.json";
 const MAP_PATH = "/data/ieee-map.json";
 const INSTALL_CODES_PATH = "/data/install-codes.json";
 const HA_SNAPSHOT_PATH = "/data/ha-entity-map.json";
+const COORDINATOR_MAP_PATH = "/data/coordinator-map.json";
 const LISTEN_PORT = 8104;
 const RECONNECT_DELAY_MS = 5000;
 const MAX_ACTIVITY_ENTRIES = 250;
@@ -77,6 +78,7 @@ let deviceIndex = new Map();
 const deviceNameToIeee = new Map();
 let installCodes = {};
 let haSnapshots = {};
+let coordinatorSnapshots = {};
 const recentActivity = [];
 const pendingRemovals = new Map();
 const pendingMigrations = new Map();
@@ -177,6 +179,38 @@ const saveHaSnapshots = () => {
     fs.writeFileSync(HA_SNAPSHOT_PATH, JSON.stringify(payload, null, 2));
   } catch (error) {
     console.error("Failed to save HA snapshot file", error);
+  }
+};
+
+const loadCoordinatorSnapshots = () => {
+  try {
+    const raw = fs.readFileSync(COORDINATOR_MAP_PATH, "utf8");
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.coordinators && typeof parsed.coordinators === "object") {
+      coordinatorSnapshots = parsed.coordinators;
+      return;
+    }
+    if (parsed && typeof parsed === "object") {
+      coordinatorSnapshots = parsed;
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.error("Failed to load coordinator snapshot file", error);
+    }
+    coordinatorSnapshots = {};
+  }
+};
+
+const saveCoordinatorSnapshots = () => {
+  const payload = {
+    version: 1,
+    updatedAt: nowIso(),
+    coordinators: coordinatorSnapshots,
+  };
+  try {
+    fs.writeFileSync(COORDINATOR_MAP_PATH, JSON.stringify(payload, null, 2));
+  } catch (error) {
+    console.error("Failed to save coordinator snapshot file", error);
   }
 };
 
@@ -1294,10 +1328,14 @@ const getActivePairingBackend = () => {
 
 const formatCoordinatorMeta = (meta) => {
   if (!meta || typeof meta !== "object") {
-    return { revision: "", ieee: "" };
+    return { revision: "", summary: "" };
   }
   const revision = meta.revision || meta.Revision || meta.firmware || "";
-  return { revision };
+  const summary = Object.entries(meta)
+    .slice(0, 4)
+    .map(([key, value]) => `${key}:${value}`)
+    .join(", ");
+  return { revision, summary };
 };
 
 const buildCoordinatorList = () => {
@@ -1309,14 +1347,33 @@ const buildCoordinatorList = () => {
       continue;
     }
     const meta = formatCoordinatorMeta(coordinator.meta || {});
-    coordinators.push({
-      id: backend.id,
-      label: backend.label,
+    const snapshot = coordinatorSnapshots[backend.id] || null;
+    const current = {
       type: coordinator.type || "",
       ieee: coordinator.ieee_address || "",
       revision: meta.revision || "",
       serialPort: info?.config?.serial?.port || "",
       adapter: info?.config?.serial?.adapter || "",
+    };
+    const changed =
+      !!snapshot &&
+      (snapshot.ieee !== current.ieee ||
+        snapshot.type !== current.type ||
+        snapshot.serialPort !== current.serialPort ||
+        snapshot.adapter !== current.adapter ||
+        snapshot.revision !== current.revision);
+    coordinators.push({
+      id: backend.id,
+      label: backend.label,
+      type: current.type,
+      ieee: current.ieee,
+      revision: current.revision,
+      serialPort: current.serialPort,
+      adapter: current.adapter,
+      metaSummary: meta.summary || "",
+      metaRaw: coordinator.meta || {},
+      saved: snapshot,
+      changed,
     });
   }
   return coordinators;
@@ -1779,6 +1836,7 @@ class Backend {
 loadMappings();
 loadInstallCodes();
 loadHaSnapshots();
+loadCoordinatorSnapshots();
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -2043,6 +2101,31 @@ app.post("/api/ha/automations/preview-device", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message || "Failed to preview automations for device" });
   }
+});
+
+app.post("/api/coordinators/accept", (req, res) => {
+  const { backendId } = req.body || {};
+  if (!backendId || typeof backendId !== "string") {
+    res.status(400).json({ error: "Missing backend id" });
+    return;
+  }
+  const backend = backends.find((entry) => entry.id === backendId);
+  if (!backend || !backend.bridgeInfo || !backend.bridgeInfo.coordinator) {
+    res.status(404).json({ error: "Coordinator not found" });
+    return;
+  }
+  const info = backend.bridgeInfo;
+  const meta = formatCoordinatorMeta(info.coordinator.meta || {});
+  coordinatorSnapshots[backendId] = {
+    ieee: info.coordinator.ieee_address || "",
+    type: info.coordinator.type || "",
+    revision: meta.revision || "",
+    serialPort: info.config?.serial?.port || "",
+    adapter: info.config?.serial?.adapter || "",
+    savedAt: nowIso(),
+  };
+  saveCoordinatorSnapshots();
+  res.json({ ok: true });
 });
 
 app.post("/api/pairing", (req, res) => {

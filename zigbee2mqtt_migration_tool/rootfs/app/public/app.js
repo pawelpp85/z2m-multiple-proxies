@@ -390,17 +390,30 @@ const renderCoordinators = (coordinators = []) => {
       <div>IEEE address</div>
       <div>Revision</div>
       <div>Serial</div>
+      <div>Meta</div>
+      <div>Status</div>
+      <div>Actions</div>
     </div>`,
   ];
   coordinators.forEach((entry) => {
     const serial = [entry.adapter, entry.serialPort].filter(Boolean).join(" · ");
+    const meta = entry.metaSummary || "-";
+    const status = entry.changed ? "Changed" : entry.saved ? "Saved" : "New";
+    const rowClass = entry.changed ? "coordinator-row changed" : "coordinator-row";
     rows.push(`
-      <div class="row data coordinator-row">
+      <div class="row data ${rowClass}" data-backend="${entry.id}">
         <div>${entry.label || entry.id}</div>
         <div>${entry.type || "-"}</div>
         <div class="mono">${entry.ieee || "-"}</div>
         <div>${entry.revision || "-"}</div>
         <div class="mono">${serial || "-"}</div>
+        <div title="${meta}">${meta}</div>
+        <div class="mono">${status}</div>
+        <div>
+          <button class="ghost" data-action="coordinator-accept" ${entry.changed || !entry.saved ? "" : "disabled"}>
+            Save
+          </button>
+        </div>
       </div>
     `);
   });
@@ -970,6 +983,28 @@ elements.deviceTable.addEventListener("click", (event) => {
   }
   const action = button.dataset.action;
   handleAction(action, row);
+});
+
+elements.coordinatorTable?.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action=\"coordinator-accept\"]");
+  if (!button) {
+    return;
+  }
+  const row = button.closest(".row.data");
+  if (!row) {
+    return;
+  }
+  const backendId = row.dataset.backend;
+  if (!backendId) {
+    return;
+  }
+  const result = await postJson("api/coordinators/accept", { backendId });
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  showToast("Coordinator saved");
+  loadState();
 });
 
 elements.deviceTable.addEventListener("input", (event) => {
