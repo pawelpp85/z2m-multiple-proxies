@@ -1442,9 +1442,6 @@ const buildDeviceList = () => {
     }
     const mapping = mappings[ieee] || { name: "" };
     const entry = deviceIndex.get(ieee);
-    if (!entry) {
-      continue;
-    }
     const migration = pendingMigrations.get(ieee);
     const mappingName = mapping.name ? mapping.name.trim() : "";
     const currentName = entry ? firstKnownName(entry) : "";
@@ -1452,21 +1449,33 @@ const buildDeviceList = () => {
       !!entry &&
       !!mappingName &&
       Object.values(entry.namesByBackend || {}).some((name) => name && name !== mappingName);
+    const fallback = entry || {
+      instances: [],
+      model: "",
+      vendor: "",
+      modelId: "",
+      supported: false,
+      type: "Unknown",
+      online: false,
+      interviewCompleted: false,
+      linkquality: null,
+      lastSeen: null,
+    };
     combined.push({
       ieee,
       mappedName: mappingName,
       currentName,
       nameMismatch,
-      instances: entry ? entry.instances : [],
-      model: entry ? entry.model : "",
-      vendor: entry ? entry.vendor : "",
-      modelId: entry ? entry.modelId : "",
-      supported: entry ? entry.supported : false,
-      type: entry ? entry.type : "Unknown",
-      online: entry ? entry.online : false,
-      interviewCompleted: entry ? entry.interviewCompleted : false,
-      linkquality: entry ? entry.linkquality : null,
-      lastSeen: entry ? entry.lastSeen : null,
+      instances: fallback.instances,
+      model: fallback.model,
+      vendor: fallback.vendor,
+      modelId: fallback.modelId,
+      supported: fallback.supported,
+      type: fallback.type,
+      online: fallback.online,
+      interviewCompleted: fallback.interviewCompleted,
+      linkquality: fallback.linkquality,
+      lastSeen: fallback.lastSeen,
       installCode: installCodes[ieee] || "",
       migrationStatus: migration ? describeMigration(migration) : null,
       migrationTarget: migration ? migration.targetBackendId : null,
