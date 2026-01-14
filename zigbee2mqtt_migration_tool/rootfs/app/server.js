@@ -824,6 +824,18 @@ const previewAutomationRewrite = async () => {
         });
       }
     }
+    const mapSummary = details
+      .map((entry) => `${entry.ieee}:${entry.from}->${entry.to}`)
+      .join(", ");
+    console.log(
+      `[HA] automation preview: automations=${automations.length} affected=${affectedAutomations} hits=${replacementHits} deviceMap=[${mapSummary}]`,
+    );
+    if (affected.length > 0) {
+      const list = affected
+        .map((entry) => `${entry.alias || entry.id || "automation"} (${entry.id}) hits=${entry.hits}`)
+        .join("; ");
+      console.log(`[HA] affected automations: ${list}`);
+    }
     return {
       automations: automations.length,
       affectedAutomations,
