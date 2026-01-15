@@ -1306,11 +1306,38 @@ const rebuildDeviceIndex = () => {
         }
       }
 
-      if (!mappings[ieee]) {
-        mappings[ieee] = {
+      let mapping = mappings[ieee];
+      if (!mapping) {
+        mapping = {
           name: device.friendly_name,
           updatedAt: nowIso(),
         };
+        mappings[ieee] = mapping;
+        mappingsChanged = true;
+      }
+      const nextModel = device.definition?.model || device.model_id || "";
+      const nextVendor = device.definition?.vendor || "";
+      const nextModelId = device.model_id || "";
+      const nextSupported = device.supported === true;
+      let metaChanged = false;
+      if (nextModel && mapping.model !== nextModel) {
+        mapping.model = nextModel;
+        metaChanged = true;
+      }
+      if (nextVendor && mapping.vendor !== nextVendor) {
+        mapping.vendor = nextVendor;
+        metaChanged = true;
+      }
+      if (nextModelId && mapping.modelId !== nextModelId) {
+        mapping.modelId = nextModelId;
+        metaChanged = true;
+      }
+      if (nextSupported && mapping.supported !== true) {
+        mapping.supported = true;
+        metaChanged = true;
+      }
+      if (metaChanged) {
+        mapping.updatedAt = nowIso();
         mappingsChanged = true;
       }
     }
@@ -1485,10 +1512,10 @@ const buildDeviceList = () => {
       Object.values(entry.namesByBackend || {}).some((name) => name && name !== mappingName);
     const fallback = entry || {
       instances: [],
-      model: "",
-      vendor: "",
-      modelId: "",
-      supported: false,
+      model: mapping.model || "",
+      vendor: mapping.vendor || "",
+      modelId: mapping.modelId || "",
+      supported: mapping.supported === true,
       type: "Unknown",
       online: false,
       interviewCompleted: false,
@@ -1501,10 +1528,10 @@ const buildDeviceList = () => {
       currentName,
       nameMismatch,
       instances: fallback.instances,
-      model: fallback.model,
-      vendor: fallback.vendor,
-      modelId: fallback.modelId,
-      supported: fallback.supported,
+      model: fallback.model || mapping.model || "",
+      vendor: fallback.vendor || mapping.vendor || "",
+      modelId: fallback.modelId || mapping.modelId || "",
+      supported: fallback.supported || mapping.supported === true,
       type: fallback.type,
       online: fallback.online,
       interviewCompleted: fallback.interviewCompleted,
@@ -1980,7 +2007,9 @@ app.post("/api/mappings", (req, res) => {
     res.status(400).json({ error: "Missing device name" });
     return;
   }
+  const existing = mappings[ieee] || {};
   mappings[ieee] = {
+    ...existing,
     name: name.trim(),
     updatedAt: nowIso(),
   };

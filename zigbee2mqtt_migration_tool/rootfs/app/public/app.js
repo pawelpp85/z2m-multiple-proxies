@@ -155,6 +155,10 @@ const renderPairingControl = (pairing, backends) => {
   if (!elements.pairingControl) {
     return;
   }
+  const activeSelect = elements.pairingControl.querySelector("select[data-action=\"pairing-select\"]");
+  if (activeSelect && document.activeElement === activeSelect) {
+    return;
+  }
   const active = (pairing || []).filter((entry) => entry && entry.id);
   if (active.length === 1) {
     const current = active[0];
@@ -385,6 +389,7 @@ const renderCoordinators = (coordinators = []) => {
     elements.coordinatorTable.innerHTML = "<p class=\"subtitle\">No coordinator data yet.</p>";
     return;
   }
+  const hasStatus = coordinators.some((entry) => entry.changed);
   const rows = [
     `<div class="row header">
       <div>Instance</div>
@@ -392,7 +397,7 @@ const renderCoordinators = (coordinators = []) => {
       <div>IEEE address</div>
       <div>Revision</div>
       <div>Serial</div>
-      <div>Status</div>
+      ${hasStatus ? "<div>Status</div>" : ""}
     </div>`,
   ];
   coordinators.forEach((entry) => {
@@ -406,7 +411,7 @@ const renderCoordinators = (coordinators = []) => {
         <div class="mono">${entry.ieee || "-"}</div>
         <div>${entry.revision || "-"}</div>
         <div class="mono">${serial || "-"}</div>
-        <div class="mono">${status}</div>
+        ${hasStatus ? `<div class="mono">${status}</div>` : ""}
       </div>
     `);
   });
