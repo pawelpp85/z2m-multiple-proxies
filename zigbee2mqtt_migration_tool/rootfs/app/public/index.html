@@ -47,9 +47,9 @@
               <ul>
                 <li><strong>Save snapshot</strong>: fetches HA device + entity ids and stores them. This is required before migration.</li>
                 <li><strong>Restore entity IDs</strong>: renames human‑readable entity_id values back to the snapshot. Does not change device_id or registry ids.</li>
-                <li><strong>Preview device_id rewrite</strong>: scans all automations and lists which ones will be changed across devices with snapshots.</li>
-                <li><strong>Rewrite device IDs</strong>: applies device_id + registry id replacements to all affected automations.</li>
-                <li><strong>Fix automations for this device</strong>: applies replacements only for the current device (safer for targeted fixes).</li>
+                <li><strong>Scan</strong>: scans automations, scripts, and scenes and lists which ones will be changed across devices with snapshots.</li>
+                <li><strong>Rewrite device IDs</strong>: applies device_id + registry id replacements to all affected automations, scripts, and scenes.</li>
+                <li><strong>Fix automations</strong>: applies replacements only for the current device (safer for targeted fixes).</li>
               </ul>
               <p>If a field shows “-” it means there was no snapshot for that item at the time of migration.</p>
             </div>
@@ -195,15 +195,35 @@
           <h4>Entities</h4>
           <div class="ha-table" id="haEntityInfo"></div>
         </div>
-          <div class="ha-section">
+        <div class="ha-section">
           <h4>Automations</h4>
           <div class="ha-info" id="haAutomationInfo">-</div>
           <div class="ha-list" id="haAutomationList"></div>
           <div class="ha-info" id="haAutomationDeviceInfo">-</div>
           <div class="ha-actions">
-            <button class="secondary" id="haAutomationPreview">Preview device_id rewrite</button>
-            <button class="secondary danger" id="haAutomationApply" disabled>Rewrite device IDs</button>
-            <button class="secondary" id="haAutomationDeviceApply" disabled>Fix automations for this device</button>
+            <button
+              class="secondary"
+              id="haAutomationPreview"
+              title="Scan automations, scripts, and scenes for device_id/entity registry id replacements. No changes are applied."
+            >
+              Scan
+            </button>
+            <button
+              class="secondary danger"
+              id="haAutomationApply"
+              disabled
+              title="Rewrite device_id and entity registry IDs across all affected automations, scripts, and scenes."
+            >
+              Rewrite device IDs
+            </button>
+            <button
+              class="secondary"
+              id="haAutomationDeviceApply"
+              disabled
+              title="Apply replacements only for this device across automations, scripts, and scenes."
+            >
+              Fix automations
+            </button>
           </div>
         </div>
       </div>

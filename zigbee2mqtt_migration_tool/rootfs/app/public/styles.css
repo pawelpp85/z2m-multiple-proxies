@@ -935,8 +935,19 @@ button:disabled {
   color: #9aa7b8;
 }
 
-.ha-status.registry {
+.ha-status.warn {
   color: #f6d365;
+}
+
+.ha-detail {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  color: var(--ink-soft);
+  display: none;
+}
+
+.ha-row.expanded .ha-detail {
+  display: block;
 }
 
 .scanner-inner {

@@ -474,11 +474,19 @@ const formatIdentifiers = (items) => {
     .join(", ");
 };
 
-const buildHaAutomationUrl = (automationId) => {
-  if (!haBaseUrl || !automationId) {
+const buildHaConfigUrl = (type, configId) => {
+  if (!haBaseUrl || !configId) {
     return "";
   }
-  return `${haBaseUrl.replace(/\/$/, "")}/config/automation/edit/${encodeURIComponent(automationId)}`;
+  const cleanId = configId.includes(".") ? configId.split(".").slice(1).join(".") : configId;
+  const base = haBaseUrl.replace(/\/$/, "");
+  if (type === "script") {
+    return `${base}/config/script/edit/${encodeURIComponent(cleanId)}`;
+  }
+  if (type === "scene") {
+    return `${base}/config/scene/edit/${encodeURIComponent(cleanId)}`;
+  }
+  return `${base}/config/automation/edit/${encodeURIComponent(cleanId)}`;
 };
 
 const buildHaDeviceUrl = (deviceId) => {
@@ -573,6 +581,10 @@ const renderHaInfo = (payload) => {
     if (plan.length > 0) {
       plan.forEach((item) => {
         const status = item.status || "missing";
+        const detail =
+          status === "warn"
+            ? `<div class="ha-detail">Warn: entity_id matches, but registry_id changed. Automations may still reference the old registry id.</div>`
+            : "";
         rows.push(`
           <div class="ha-row" data-expand="false">
             <div class="ha-status ${status}">${status}</div>
@@ -580,6 +592,7 @@ const renderHaInfo = (payload) => {
             <div class="mono">${item.current_entity_id || "-"}</div>
             <div class="mono">${item.desired_registry_id || "-"}</div>
             <div class="mono">${item.current_registry_id || "-"}</div>
+            ${detail}
           </div>
         `);
       });
@@ -602,6 +615,8 @@ const renderHaInfo = (payload) => {
   if (haAutomationPreview) {
     const lines = [
       `Automations: ${haAutomationPreview.automations}`,
+      `Scripts: ${haAutomationPreview.scripts || 0}`,
+      `Scenes: ${haAutomationPreview.scenes || 0}`,
       `Affected: ${haAutomationPreview.affectedAutomations}`,
       `Replacements: ${haAutomationPreview.replacementHits}`,
     ];
@@ -627,8 +642,9 @@ const renderHaInfo = (payload) => {
       elements.haAutomationList.innerHTML = affected
         .slice(0, 10)
         .map((entry) => {
-          const url = buildHaAutomationUrl(entry.id);
+          const url = buildHaConfigUrl(entry.type, entry.id);
           const label = entry.alias || entry.id || "automation";
+          const prefix = entry.type ? `${entry.type}: ` : "";
           const ieees = entry.ieees && entry.ieees.length > 0 ? entry.ieees.join(", ") : "";
           const detail = [];
           if (typeof entry.deviceHits === "number" && entry.deviceHits > 0) {
@@ -641,9 +657,9 @@ const renderHaInfo = (payload) => {
           const deviceNote = ieees ? `Device(s): ${ieees}` : "Device: unknown";
           const meta = `<span class="ha-meta">${deviceNote} · ${note}</span>`;
           if (!url) {
-            return `<div class="ha-item"><span class="ha-more">${label}</span>${meta}</div>`;
+            return `<div class="ha-item"><span class="ha-more">${prefix}${label}</span>${meta}</div>`;
           }
-          return `<div class="ha-item"><a class="ha-link" href="${url}" target="_blank" rel="noreferrer">${label}</a>${meta}</div>`;
+          return `<div class="ha-item"><a class="ha-link" href="${url}" target="_blank" rel="noreferrer">${prefix}${label}</a>${meta}</div>`;
         })
         .join("");
       if (affected.length > 10) {
@@ -653,25 +669,29 @@ const renderHaInfo = (payload) => {
       elements.haAutomationList.innerHTML = "";
     }
   } else {
-    elements.haAutomationInfo.textContent = "No automation preview run yet.";
+    elements.haAutomationInfo.textContent = "No scan run yet.";
     elements.haAutomationList.innerHTML = "";
   }
 
   if (haAutomationDevicePreview) {
     const lines = [
-      `This device: affected ${haAutomationDevicePreview.affectedAutomations} automations`,
+      `This device: affected ${haAutomationDevicePreview.affectedAutomations} items`,
+      `Automations: ${haAutomationDevicePreview.automations}`,
+      `Scripts: ${haAutomationDevicePreview.scripts || 0}`,
+      `Scenes: ${haAutomationDevicePreview.scenes || 0}`,
       `Replacements: ${haAutomationDevicePreview.replacementHits}`,
       `Device ID replacements: ${haAutomationDevicePreview.deviceHits || 0}`,
       `Entity ID replacements: ${haAutomationDevicePreview.entityHits || 0}`,
     ];
     elements.haAutomationDeviceInfo.textContent = lines.join("\n");
   } else {
-    elements.haAutomationDeviceInfo.textContent = "No per-device preview run yet.";
+    elements.haAutomationDeviceInfo.textContent = "No scan run yet.";
   }
   elements.haAutomationApply.disabled = !haAutomationPreview || haAutomationPreview.affectedAutomations === 0;
   elements.haSnapshot.disabled = false;
   elements.haAutomationPreview.disabled = false;
-  elements.haAutomationDeviceApply.disabled = !haModalIeee;
+  elements.haAutomationDeviceApply.disabled =
+    !haAutomationDevicePreview || haAutomationDevicePreview.affectedAutomations === 0;
 };
 
 const openHaModal = async (ieee, label) => {
@@ -683,9 +703,9 @@ const openHaModal = async (ieee, label) => {
   elements.haSnapshotInfo.textContent = "-";
   elements.haDeviceInfo.textContent = "-";
   elements.haEntityInfo.innerHTML = "";
-  elements.haAutomationInfo.textContent = "No automation preview run yet.";
+  elements.haAutomationInfo.textContent = "No scan run yet.";
   elements.haAutomationList.innerHTML = "";
-  elements.haAutomationDeviceInfo.textContent = "No per-device preview run yet.";
+  elements.haAutomationDeviceInfo.textContent = "No scan run yet.";
   elements.haSnapshot.disabled = true;
   elements.haRestore.disabled = true;
   elements.haAutomationPreview.disabled = true;
@@ -1287,20 +1307,36 @@ elements.haAutomationPreview.addEventListener("click", async () => {
     showToast("Load HA device info first");
     return;
   }
-  const result = await postEmpty("api/ha/automations/preview");
-  if (result.error) {
-    showToast(result.error);
+  if (!haModalIeee) {
+    showToast("Select a device first");
     return;
   }
-  haAutomationPreview = result.result || null;
-  if (result.haUrl) {
-    haBaseUrl = result.haUrl;
+  const [globalResult, deviceResult] = await Promise.all([
+    postEmpty("api/ha/automations/preview"),
+    postJson("api/ha/automations/preview-device", { ieee: haModalIeee }),
+  ]);
+  if (globalResult.error) {
+    showToast(globalResult.error);
+    return;
+  }
+  if (deviceResult.error) {
+    showToast(deviceResult.error);
+    return;
+  }
+  haAutomationPreview = globalResult.result || null;
+  haAutomationDevicePreview = deviceResult.result || null;
+  if (globalResult.haUrl) {
+    haBaseUrl = globalResult.haUrl;
+  }
+  if (deviceResult.haUrl) {
+    haBaseUrl = deviceResult.haUrl;
   }
   renderHaInfo({ info: lastHaInfo });
 });
 
 elements.haAutomationApply.addEventListener("click", async () => {
-  if (!confirm("Rewrite device_id in automations now?")) {
+  if (!haAutomationPreview) {
+    showToast("Run scan first");
     return;
   }
   const result = await postEmpty("api/ha/automations/rewrite");
@@ -1308,8 +1344,9 @@ elements.haAutomationApply.addEventListener("click", async () => {
     showToast(result.error);
     return;
   }
-  showToast("Automation rewrite applied");
+  showToast("Rewrite applied");
   haAutomationPreview = null;
+  haAutomationDevicePreview = null;
   openHaModal(haModalIeee);
 });
 
@@ -1319,18 +1356,7 @@ elements.haAutomationDeviceApply.addEventListener("click", async () => {
     return;
   }
   if (!haAutomationDevicePreview) {
-    const preview = await postJson("api/ha/automations/preview-device", { ieee: haModalIeee });
-    if (preview.error) {
-      showToast(preview.error);
-      return;
-    }
-    haAutomationDevicePreview = preview.result || null;
-    renderHaInfo({ info: lastHaInfo, haUrl: preview.haUrl });
-  }
-  const detail = haAutomationDevicePreview
-    ? `Automations: ${haAutomationDevicePreview.affectedAutomations}, replacements: ${haAutomationDevicePreview.replacementHits}`
-    : "Proceed?";
-  if (!confirm(`Fix automations for this device now?\n${detail}`)) {
+    showToast("Run scan first");
     return;
   }
   const result = await postJson("api/ha/automations/rewrite-device", { ieee: haModalIeee });
@@ -1338,7 +1364,7 @@ elements.haAutomationDeviceApply.addEventListener("click", async () => {
     showToast(result.error);
     return;
   }
-  showToast(detail);
+  showToast("Fix applied");
   haAutomationPreview = null;
   haAutomationDevicePreview = null;
   openHaModal(haModalIeee);

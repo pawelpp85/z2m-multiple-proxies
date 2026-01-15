@@ -615,7 +615,7 @@ const buildHaDeviceInfoWithClient = async (client, ieee) => {
           currentRegistryId &&
           saved.entity_registry_id !== currentRegistryId
         ) {
-          status = "registry";
+          status = "warn";
         }
       }
       restorePlan.push({
@@ -823,6 +823,77 @@ const fetchHaAutomations = async (client) => {
   return results;
 };
 
+const fetchHaDomainConfigs = async (client, domain, wsCommand, restPrefix) => {
+  const entities = await client.request("config/entity_registry/list");
+  const domainEntities = (entities || []).filter(
+    (entry) => entry && typeof entry.entity_id === "string" && entry.entity_id.startsWith(`${domain}.`),
+  );
+  if (domainEntities.length === 0) {
+    return [];
+  }
+  const results = [];
+  for (const entry of domainEntities) {
+    const entityId = entry.entity_id;
+    const configId = entry.unique_id || entry.entity_id;
+    let config = null;
+    if (wsCommand) {
+      try {
+        const payload = await client.request(wsCommand, { entity_id: entityId });
+        config = payload?.config || null;
+      } catch (error) {
+        if (!isUnknownHaCommand(error)) {
+          const message = String(error.message || "");
+          if (!message.includes("Entity not found") && !message.includes("not found")) {
+            throw error;
+          }
+        }
+      }
+    }
+    if (!config) {
+      const restId = configId.includes(".") ? configId.split(".").slice(1).join(".") : configId;
+      try {
+        config = await haRestRequest("GET", `${restPrefix}/${encodeURIComponent(restId)}`);
+      } catch (restError) {
+        if (!String(restError.message || "").includes("404")) {
+          throw restError;
+        }
+      }
+    }
+    if (!config) {
+      continue;
+    }
+    results.push({
+      id: configId,
+      config,
+      alias: config.alias || entry.original_name || entityId,
+      entity_id: entityId,
+    });
+  }
+  return results;
+};
+
+const fetchHaRewriteTargets = async (client) => {
+  const [automationRaw, scriptsRaw, scenesRaw] = await Promise.all([
+    fetchHaAutomations(client),
+    fetchHaDomainConfigs(client, "script", "script/config", "/api/config/script/config"),
+    fetchHaDomainConfigs(client, "scene", "scene/config", "/api/config/scene/config"),
+  ]);
+  const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean).map((entry) => ({
+    ...entry,
+    type: "automation",
+  }));
+  const scripts = scriptsRaw.map((entry) => ({ ...entry, type: "script" }));
+  const scenes = scenesRaw.map((entry) => ({ ...entry, type: "scene" }));
+  return {
+    items: [...automations, ...scripts, ...scenes],
+    counts: {
+      automations: automations.length,
+      scripts: scripts.length,
+      scenes: scenes.length,
+    },
+  };
+};
+
 const normalizeAutomationEntry = (entry) => {
   if (!entry || typeof entry !== "object") {
     return null;
@@ -837,6 +908,20 @@ const normalizeAutomationEntry = (entry) => {
     return { id: entry.id || entry.alias, config: entry, alias: entry.alias || entry.id || "" };
   }
   return null;
+};
+
+const applyHaConfigUpdate = async (type, id, value) => {
+  if (!id) {
+    return null;
+  }
+  const restId = id.includes(".") ? id.split(".").slice(1).join(".") : id;
+  if (type === "script") {
+    return haRestRequest("POST", `/api/config/script/config/${encodeURIComponent(restId)}`, value);
+  }
+  if (type === "scene") {
+    return haRestRequest("POST", `/api/config/scene/config/${encodeURIComponent(restId)}`, value);
+  }
+  return haRestRequest("POST", `/api/config/automation/config/${id}`, value);
 };
 
 const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap, entityRegistryLookup) => {
@@ -1066,8 +1151,7 @@ const buildDeviceIdMap = async () => {
 
 const previewAutomationRewrite = async () => {
   return withHaClient(async (client) => {
-    const automationRaw = await fetchHaAutomations(client);
-    const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean);
+    const { items, counts } = await fetchHaRewriteTargets(client);
     const { map, details } = await buildDeviceIdMapWithClient(client);
     const entityInfo = await buildEntityRegistryIdMapWithClient(client);
     const { map: entityMap, details: entityDetails } = entityInfo;
@@ -1078,8 +1162,8 @@ const previewAutomationRewrite = async () => {
     let deviceHits = 0;
     let entityHits = 0;
     const affected = [];
-    for (const automation of automations) {
-      const result = rewriteAutomationIds(automation.config, map, entityMap, entityInfo);
+    for (const entry of items) {
+      const result = rewriteAutomationIds(entry.config, map, entityMap, entityInfo);
       if (result.changed) {
         affectedAutomations += 1;
         replacementHits += result.hits;
@@ -1099,11 +1183,12 @@ const previewAutomationRewrite = async () => {
           }
         });
         affected.push({
-          id: automation.id || "",
-          alias: automation.alias || "",
+          id: entry.id || "",
+          alias: entry.alias || "",
           hits: result.hits,
           deviceHits: result.deviceHits,
           entityHits: result.entityHits,
+          type: entry.type || "automation",
           ieees: [...ieees],
         });
       }
@@ -1112,7 +1197,7 @@ const previewAutomationRewrite = async () => {
       .map((entry) => `${entry.ieee}:${entry.from}->${entry.to}`)
       .join(", ");
     console.log(
-      `[HA] automation preview: automations=${automations.length} affected=${affectedAutomations} hits=${replacementHits} deviceHits=${deviceHits} entityHits=${entityHits} deviceMap=[${mapSummary}] entityMapCount=${entityDetails.length}`,
+      `[HA] automation preview: automations=${counts.automations} scripts=${counts.scripts} scenes=${counts.scenes} affected=${affectedAutomations} hits=${replacementHits} deviceHits=${deviceHits} entityHits=${entityHits} deviceMap=[${mapSummary}] entityMapCount=${entityDetails.length}`,
     );
     if (affected.length > 0) {
       const list = affected
@@ -1121,7 +1206,9 @@ const previewAutomationRewrite = async () => {
       console.log(`[HA] affected automations: ${list}`);
     }
     return {
-      automations: automations.length,
+      automations: counts.automations,
+      scripts: counts.scripts,
+      scenes: counts.scenes,
       affectedAutomations,
       replacementHits,
       deviceHits,
@@ -1135,22 +1222,21 @@ const previewAutomationRewrite = async () => {
 
 const applyAutomationRewrite = async () => {
   return withHaClient(async (client) => {
-    const automationRaw = await fetchHaAutomations(client);
-    const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean);
+    const { items } = await fetchHaRewriteTargets(client);
     const { map, details } = await buildDeviceIdMapWithClient(client);
     const entityInfo = await buildEntityRegistryIdMapWithClient(client);
     const { map: entityMap } = entityInfo;
     let updated = 0;
     let replacementHits = 0;
-    for (const automation of automations) {
-      const result = rewriteAutomationIds(automation.config, map, entityMap, entityInfo);
+    for (const entry of items) {
+      const result = rewriteAutomationIds(entry.config, map, entityMap, entityInfo);
       if (!result.changed) {
         continue;
       }
-      if (!automation.id) {
+      if (!entry.id) {
         continue;
       }
-      await haRestRequest("POST", `/api/config/automation/config/${automation.id}`, result.value);
+      await applyHaConfigUpdate(entry.type, entry.id, result.value);
       updated += 1;
       replacementHits += result.hits;
     }
@@ -1164,8 +1250,7 @@ const applyAutomationRewrite = async () => {
 
 const applyAutomationRewriteForDevice = async (ieee) => {
   return withHaClient(async (client) => {
-    const automationRaw = await fetchHaAutomations(client);
-    const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean);
+    const { items } = await fetchHaRewriteTargets(client);
     const deviceMap = await buildDeviceIdMapWithClient(client);
     const entityInfo = await buildEntityRegistryIdMapWithClient(client, ieee);
     const deviceMapEntries = deviceMap.details.filter((entry) => entry.ieee === ieee);
@@ -1177,15 +1262,15 @@ const applyAutomationRewriteForDevice = async (ieee) => {
     };
     let updated = 0;
     let replacementHits = 0;
-    for (const automation of automations) {
-      const result = rewriteAutomationIds(automation.config, deviceIdMap, entityIdMap, entityInfoScoped);
+    for (const entry of items) {
+      const result = rewriteAutomationIds(entry.config, deviceIdMap, entityIdMap, entityInfoScoped);
       if (!result.changed) {
         continue;
       }
-      if (!automation.id) {
+      if (!entry.id) {
         continue;
       }
-      await haRestRequest("POST", `/api/config/automation/config/${automation.id}`, result.value);
+      await applyHaConfigUpdate(entry.type, entry.id, result.value);
       updated += 1;
       replacementHits += result.hits;
     }
@@ -1200,8 +1285,7 @@ const applyAutomationRewriteForDevice = async (ieee) => {
 
 const previewAutomationRewriteForDevice = async (ieee) => {
   return withHaClient(async (client) => {
-    const automationRaw = await fetchHaAutomations(client);
-    const automations = automationRaw.map(normalizeAutomationEntry).filter(Boolean);
+    const { items, counts } = await fetchHaRewriteTargets(client);
     const deviceMap = await buildDeviceIdMapWithClient(client);
     const entityInfo = await buildEntityRegistryIdMapWithClient(client, ieee);
     const deviceMapEntries = deviceMap.details.filter((entry) => entry.ieee === ieee);
@@ -1216,22 +1300,25 @@ const previewAutomationRewriteForDevice = async (ieee) => {
     let deviceHits = 0;
     let entityHits = 0;
     const affected = [];
-    for (const automation of automations) {
-      const result = rewriteAutomationIds(automation.config, deviceIdMap, entityIdMap, entityInfoScoped);
+    for (const entry of items) {
+      const result = rewriteAutomationIds(entry.config, deviceIdMap, entityIdMap, entityInfoScoped);
       if (result.changed) {
         affectedAutomations += 1;
         replacementHits += result.hits;
         deviceHits += result.deviceHits;
         entityHits += result.entityHits;
         affected.push({
-          id: automation.id || "",
-          alias: automation.alias || "",
+          id: entry.id || "",
+          alias: entry.alias || "",
           hits: result.hits,
+          type: entry.type || "automation",
         });
       }
     }
     return {
-      automations: automations.length,
+      automations: counts.automations,
+      scripts: counts.scripts,
+      scenes: counts.scenes,
       affectedAutomations,
       replacementHits,
       deviceHits,
