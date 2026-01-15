@@ -1,6 +1,6 @@
 # Zigbee2MQTT Migration tool
 
-Migration helper for multiple Zigbee2MQTT instances. Stores IEEE -> name mappings, keeps device names across networks, and assists during migration/pairing.
+Migration tool for moving devices between Zigbee2MQTT instances. Besides helping remove/add devices, it checks where Home Assistant uses their device IDs and entity IDs and repairs migration-related issues.
 
 ## How to use
 This tool helps migrate devices between Zigbee2MQTT instances, but it is not fully automatic.
@@ -9,10 +9,14 @@ Configure the add-on with URLs for all your instances. The tool discovers device
 
 Before migrating, make sure an install code is stored for the device. Install codes are saved per IEEE address and can be scanned with the camera and added to the target instance.
 
-1. Enable pairing in exactly one Zigbee2MQTT instance (or use the pairing buttons here).
-2. Click “Migrate” for the device to remove it from its current instance.
-3. Put the device into pairing mode and follow the manufacturer or Zigbee2MQTT instructions.
-4. After the device joins the new instance and finishes the interview, the mapped name is applied automatically.
+1. If mappings are not imported automatically, click Reset mappings.
+2. Click one of the Zigbee2MQTT instances to start pairing.
+3. In Device mappings, pick the device you want to move.
+4. Click Migrate or Force migration.
+5. If the device requires pairing mode (e.g., press a button), do it. Many devices do not require this even if they have a reset button; after leaving the old instance they will initiate joining the new one.
+6. Wait a few seconds for the device to join the new network. The tool renames it automatically.
+7. Click HA IDs to check whether entity_id changes are needed (usually not).
+8. Click Scan in the HA IDs panel to check whether IDs in automations need rewriting.
 
 Pairing buttons in the UI can enable/disable pairing and extend pairing for another 4 minutes.
 

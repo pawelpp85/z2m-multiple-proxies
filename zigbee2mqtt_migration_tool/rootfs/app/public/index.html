@@ -24,13 +24,17 @@
               <p>Before migrating, make sure an install code is stored for the device. Install codes are saved per IEEE address and can be scanned with the camera and added to the target instance.</p>
             </div>
             <div class="instruction-block">
-              <h4>Migration steps</h4>
+              <h4>Quick start</h4>
               <p>Use the pairing buttons above to enable/disable pairing. The refresh icon extends pairing for another 4 minutes.</p>
               <ol>
-                <li>Enable pairing in exactly one Zigbee2MQTT instance (or use the pairing control here).</li>
-                <li>Click “Migrate” for the device to remove it from its current instance.</li>
-                <li>Put the device into pairing mode and follow the manufacturer or Zigbee2MQTT instructions.</li>
-                <li>After the device joins the new instance and finishes the interview, the mapped name is applied automatically.</li>
+                <li>If mappings are not imported automatically, click Reset mappings.</li>
+                <li>Click one of the Zigbee2MQTT instances to start pairing.</li>
+                <li>In Device mappings, pick the device you want to move.</li>
+                <li>Click Migrate or Force migration.</li>
+                <li>If the device requires pairing mode (e.g., press a button), do it. Many devices do not require this even if they have a reset button; after leaving the old instance they will initiate joining the new one.</li>
+                <li>Wait a few seconds for the device to join the new network. The tool renames it automatically.</li>
+                <li>Click HA IDs to check whether entity_id changes are needed (usually not).</li>
+                <li>Click Scan in the HA IDs panel to check whether IDs in automations need rewriting.</li>
               </ol>
             </div>
             <div class="instruction-block">

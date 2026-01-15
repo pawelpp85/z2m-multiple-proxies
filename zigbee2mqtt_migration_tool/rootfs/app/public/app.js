@@ -485,7 +485,7 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
           <button class="force-migrate" data-action="force-migrate" ${
             migrationAvailable && !disabled ? "" : "disabled"
           } data-help="Force migration and remove blocklist after interview if needed.">Force migration</button>
-          <button class="ghost" data-action="ha-details" data-help="Otwiera panel HA IDs: zapis snapshotu, przywrocenie entity_id, skan i rewrite device_id/registry_id w automations, scripts i scenes.">HA IDs</button>
+          <button class="ghost" data-action="ha-details" data-help="Open the HA IDs panel to save a snapshot, restore entity_id, and scan/rewrite device_id/registry_id in automations, scripts, and scenes.">HA IDs</button>
           ${
             device.online === false
               ? '<button class="ghost danger" data-action="delete-offline" data-help="Remove this offline device from local mappings.">Delete</button>'
