@@ -326,12 +326,17 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
           ${
             mismatch
               ? `<div class="name-current">Current name: <span>${currentName}</span></div>
-          <button class="ghost rename-button" data-action="rename-to">Change to</button>`
+          <button class="rename-button" data-action="rename-to">Change to</button>`
               : ""
           }
           <div class="name-edit">
             <input type="text" value="${device.mappedName}" data-field="name" data-original="${device.mappedName}" />
             <button class="ghost save-button hidden" data-action="save">Save</button>
+            ${
+              mismatch
+                ? `<button class="ghost tiny-button" data-action="mapping-current">Use current name</button>`
+                : ""
+            }
           </div>
           ${migrationStatus}
         </div>
@@ -986,6 +991,22 @@ const handleAction = async (action, row) => {
       return;
     }
     showToast("Rename command sent");
+    loadState();
+    return;
+  }
+
+  if (action === "mapping-current") {
+    const current = row.querySelector(".name-current span")?.textContent?.trim();
+    if (!current) {
+      showToast("Current name not available");
+      return;
+    }
+    const result = await postJson("api/mappings", { ieee, name: current });
+    if (result.error) {
+      showToast(result.error);
+      return;
+    }
+    showToast("Mapping updated to current name");
     loadState();
     return;
   }

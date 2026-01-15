@@ -597,6 +597,19 @@ button {
   font-size: 11px;
 }
 
+.rename-button {
+  background: rgba(255, 154, 72, 0.95);
+  color: #2a1400;
+  border: 1px solid rgba(255, 120, 40, 0.6);
+}
+
+.tiny-button {
+  font-size: 10px;
+  padding: 2px 8px;
+  opacity: 0.85;
+  margin-top: 4px;
+}
+
 button.secondary {
   background: #e3e8ef;
   color: #0b0f14;
