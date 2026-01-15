@@ -37,10 +37,8 @@ const elements = {
   haEntityInfo: document.getElementById("haEntityInfo"),
   haAutomationInfo: document.getElementById("haAutomationInfo"),
   haAutomationList: document.getElementById("haAutomationList"),
-  haAutomationDeviceInfo: document.getElementById("haAutomationDeviceInfo"),
   haAutomationPreview: document.getElementById("haAutomationPreview"),
   haAutomationApply: document.getElementById("haAutomationApply"),
-  haAutomationDeviceApply: document.getElementById("haAutomationDeviceApply"),
 };
 
 let lastState = null;
@@ -57,7 +55,6 @@ let mappingCurrent = null;
 let isEditing = false;
 let haModalIeee = null;
 let haAutomationPreview = null;
-let haAutomationDevicePreview = null;
 let lastHaInfo = null;
 let haBaseUrl = "";
 const scanAvailable =
@@ -508,12 +505,10 @@ const renderHaInfo = (payload) => {
     elements.haEntityInfo.innerHTML = "";
     elements.haAutomationInfo.textContent = "-";
     elements.haAutomationList.innerHTML = "";
-    elements.haAutomationDeviceInfo.textContent = "-";
     elements.haSnapshot.disabled = true;
     elements.haRestore.disabled = true;
     elements.haAutomationPreview.disabled = true;
     elements.haAutomationApply.disabled = true;
-    elements.haAutomationDeviceApply.disabled = true;
     return;
   }
 
@@ -673,31 +668,14 @@ const renderHaInfo = (payload) => {
     elements.haAutomationList.innerHTML = "";
   }
 
-  if (haAutomationDevicePreview) {
-    const lines = [
-      `This device: affected ${haAutomationDevicePreview.affectedAutomations} items`,
-      `Automations: ${haAutomationDevicePreview.automations}`,
-      `Scripts: ${haAutomationDevicePreview.scripts || 0}`,
-      `Scenes: ${haAutomationDevicePreview.scenes || 0}`,
-      `Replacements: ${haAutomationDevicePreview.replacementHits}`,
-      `Device ID replacements: ${haAutomationDevicePreview.deviceHits || 0}`,
-      `Entity ID replacements: ${haAutomationDevicePreview.entityHits || 0}`,
-    ];
-    elements.haAutomationDeviceInfo.textContent = lines.join("\n");
-  } else {
-    elements.haAutomationDeviceInfo.textContent = "No scan run yet.";
-  }
   elements.haAutomationApply.disabled = !haAutomationPreview || haAutomationPreview.affectedAutomations === 0;
   elements.haSnapshot.disabled = false;
   elements.haAutomationPreview.disabled = false;
-  elements.haAutomationDeviceApply.disabled =
-    !haAutomationDevicePreview || haAutomationDevicePreview.affectedAutomations === 0;
 };
 
 const openHaModal = async (ieee, label) => {
   haModalIeee = ieee;
   haAutomationPreview = null;
-  haAutomationDevicePreview = null;
   elements.haDeviceTitle.textContent = label ? `${label} (${ieee})` : ieee;
   elements.haStatus.textContent = "Loading...";
   elements.haSnapshotInfo.textContent = "-";
@@ -705,12 +683,10 @@ const openHaModal = async (ieee, label) => {
   elements.haEntityInfo.innerHTML = "";
   elements.haAutomationInfo.textContent = "No scan run yet.";
   elements.haAutomationList.innerHTML = "";
-  elements.haAutomationDeviceInfo.textContent = "No scan run yet.";
   elements.haSnapshot.disabled = true;
   elements.haRestore.disabled = true;
   elements.haAutomationPreview.disabled = true;
   elements.haAutomationApply.disabled = true;
-  elements.haAutomationDeviceApply.disabled = true;
   elements.haModal.classList.remove("hidden");
   try {
     const result = await getJson(`api/ha/device?ieee=${encodeURIComponent(ieee)}`);
@@ -1307,29 +1283,14 @@ elements.haAutomationPreview.addEventListener("click", async () => {
     showToast("Load HA device info first");
     return;
   }
-  if (!haModalIeee) {
-    showToast("Select a device first");
-    return;
-  }
-  const [globalResult, deviceResult] = await Promise.all([
-    postEmpty("api/ha/automations/preview"),
-    postJson("api/ha/automations/preview-device", { ieee: haModalIeee }),
-  ]);
+  const globalResult = await postEmpty("api/ha/automations/preview");
   if (globalResult.error) {
     showToast(globalResult.error);
     return;
   }
-  if (deviceResult.error) {
-    showToast(deviceResult.error);
-    return;
-  }
   haAutomationPreview = globalResult.result || null;
-  haAutomationDevicePreview = deviceResult.result || null;
   if (globalResult.haUrl) {
     haBaseUrl = globalResult.haUrl;
-  }
-  if (deviceResult.haUrl) {
-    haBaseUrl = deviceResult.haUrl;
   }
   renderHaInfo({ info: lastHaInfo });
 });
@@ -1346,27 +1307,6 @@ elements.haAutomationApply.addEventListener("click", async () => {
   }
   showToast("Rewrite applied");
   haAutomationPreview = null;
-  haAutomationDevicePreview = null;
-  openHaModal(haModalIeee);
-});
-
-elements.haAutomationDeviceApply.addEventListener("click", async () => {
-  if (!haModalIeee) {
-    showToast("Select a device first");
-    return;
-  }
-  if (!haAutomationDevicePreview) {
-    showToast("Run scan first");
-    return;
-  }
-  const result = await postJson("api/ha/automations/rewrite-device", { ieee: haModalIeee });
-  if (result.error) {
-    showToast(result.error);
-    return;
-  }
-  showToast("Fix applied");
-  haAutomationPreview = null;
-  haAutomationDevicePreview = null;
   openHaModal(haModalIeee);
 });
 
