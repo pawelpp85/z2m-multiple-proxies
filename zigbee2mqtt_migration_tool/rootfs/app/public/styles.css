@@ -195,6 +195,29 @@ button.flash {
   }
 }
 
+.hover-tooltip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 260px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink);
+  background: rgba(15, 21, 29, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+
+.hover-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .overview {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

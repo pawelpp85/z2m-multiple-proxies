@@ -9,13 +9,16 @@ Configure the add-on with URLs for all your instances. The tool discovers device
 
 Before migrating, make sure an install code is stored for the device. Install codes are saved per IEEE address and can be scanned with the camera and added to the target instance.
 
-1. Enable pairing in exactly one Zigbee2MQTT instance (do this in that instance, not here).
+1. Enable pairing in exactly one Zigbee2MQTT instance (or use the pairing buttons here).
 2. Click “Migrate” for the device to remove it from its current instance.
 3. Put the device into pairing mode and follow the manufacturer or Zigbee2MQTT instructions.
 4. After the device joins the new instance and finishes the interview, the mapped name is applied automatically.
 
+Pairing buttons in the UI can enable/disable pairing and extend pairing for another 4 minutes.
+
 Reset mappings reloads current names from all instances and removes mappings for devices not present in any instance.
-Apply mappings checks for mismatched names and lets you confirm proposed changes.
+Apply mappings checks for mismatched names and lets you confirm renames per instance.
+If the current name is the desired one, update the mapping to the current name instead.
 
 ## Home Assistant IDs (HA IDs)
 The HA IDs panel snapshots and restores Home Assistant identifiers and can repair automations that reference stale IDs.
@@ -31,14 +34,13 @@ The HA IDs panel snapshots and restores Home Assistant identifiers and can repai
 - **Snapshot**: saved device ID + identifiers captured before migration.
 - **Current device**: live device ID + identifiers (with link to the HA device page).
 - **Entities**: saved vs current entity_id plus saved vs current entity registry IDs with status.
-- **Automations**: preview of which automations will be updated, what will be replaced, and which devices are affected.
+- **Automations**: preview of which automations, scripts, and scenes will be updated, what will be replaced, and which devices are affected.
 
 ### HA IDs buttons
 - **Save snapshot**: saves HA device + entity IDs and entity registry IDs (required before migration).
 - **Restore entity IDs**: renames human‑readable `entity_id` values back to snapshot values (does not change device_id or registry IDs).
-- **Preview device_id rewrite**: scans all automations and shows planned device_id/entity_id replacements for every device with a snapshot.
-- **Rewrite device IDs**: applies device_id/entity registry ID replacements to all affected automations.
-- **Fix automations for this device**: applies replacements only for the currently opened device and shows how many changes will be made.
+- **Scan**: scans automations, scripts, and scenes and shows planned device_id/entity registry ID replacements.
+- **Rewrite device IDs**: applies device_id/entity registry ID replacements to all affected automations, scripts, and scenes.
 
 ## Features
 - Persistent IEEE -> name mapping stored in `/data/ieee-map.json`
@@ -50,11 +52,11 @@ The HA IDs panel snapshots and restores Home Assistant identifiers and can repai
 - Force migration flow with blocklist handling and auto-rename
 - Apply mappings workflow with confirmation dialog for mismatches
 - Home Assistant snapshot + entity_id restore workflow (optional, via HA WebSocket API)
-- Optional automation device_id rewrite preview/apply (manual action)
+- Optional device_id/entity registry ID rewrite preview/apply for automations, scripts, and scenes
 
 ## UI
 - Device mappings table with sorting, search (name + IEEE), and instance filters
-- Pairing control dropdown when no instance is in pairing mode (disable button when active)
+- Pairing buttons per instance when disabled, with disable/extend controls when active
 - Install code editor with QR scan (when supported by the browser)
 - Unassigned devices are kept visible and marked offline
 - HA IDs modal with snapshot status, entity_id plan, and automation rewrite preview

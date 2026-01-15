@@ -25,6 +25,7 @@
             </div>
             <div class="instruction-block">
               <h4>Migration steps</h4>
+              <p>Use the pairing buttons above to enable/disable pairing. The refresh icon extends pairing for another 4 minutes.</p>
               <ol>
                 <li>Enable pairing in exactly one Zigbee2MQTT instance (or use the pairing control here).</li>
                 <li>Click “Migrate” for the device to remove it from its current instance.</li>
@@ -35,7 +36,7 @@
             <div class="instruction-block">
               <h4>Mapping tools</h4>
               <p><strong>Reset mappings</strong> reloads current names from all instances and removes mappings for devices not present in any instance.</p>
-              <p><strong>Apply mappings</strong> checks for mismatched names and lets you confirm proposed changes.</p>
+              <p><strong>Apply mappings</strong> checks for mismatched names and lets you confirm renames per instance. If the current name should be kept, use “Use current name” in the table.</p>
             </div>
             <div class="instruction-block">
               <h4>Home Assistant IDs</h4>
@@ -105,20 +106,48 @@
           </div>
           <div class="counts-right">
             <span id="mappingCount">0 mappings</span>
-            <button class="secondary danger" id="resetMappings">Reset mappings</button>
-            <button class="secondary primary" id="applyMappings">Apply mappings</button>
+            <button
+              class="secondary danger"
+              id="resetMappings"
+              data-help="Rebuild mappings from current device names and remove entries missing from all instances."
+            >
+              Reset mappings
+            </button>
+            <button
+              class="secondary primary"
+              id="applyMappings"
+              data-help="Scan for name mismatches and step through renaming devices to match stored mappings."
+            >
+              Apply mappings
+            </button>
           </div>
         </div>
         <div class="table" id="deviceTable">
           <div class="row header">
-            <button class="sort" data-sort="mappedName">Mapped name</button>
-            <button class="sort" data-sort="ieee">IEEE address</button>
-            <button class="sort" data-sort="installCode">Install code</button>
-            <button class="sort" data-sort="instances">Instances</button>
-            <button class="sort" data-sort="type">Type</button>
-            <button class="sort" data-sort="model">Model</button>
-            <button class="sort" data-sort="lqi">LQI</button>
-            <button class="sort" data-sort="online">Online</button>
+            <button class="sort" data-sort="mappedName" data-help="Sort by mapped name. Click again to reverse.">
+              Mapped name
+            </button>
+            <button class="sort" data-sort="ieee" data-help="Sort by IEEE address. Click again to reverse.">
+              IEEE address
+            </button>
+            <button class="sort" data-sort="installCode" data-help="Sort by whether an install code is set.">
+              Install code
+            </button>
+            <button class="sort" data-sort="instances" data-help="Sort by instance membership.">
+              Instances
+            </button>
+            <button class="sort" data-sort="type" data-help="Sort by device type (router/end device).">
+              Type
+            </button>
+            <button class="sort" data-sort="model" data-help="Sort by model name.">
+              Model
+            </button>
+            <button class="sort" data-sort="lqi" data-help="Sort by linkquality (LQI).">
+              LQI
+            </button>
+            <button class="sort" data-sort="online" data-help="Sort by online status.">
+              Online
+            </button>
             <div>Actions</div>
           </div>
         </div>
@@ -131,7 +160,13 @@
             <p>Coordinator details pulled from each Zigbee2MQTT instance.</p>
           </div>
           <div>
-            <button class="ghost" id="coordinatorSaveAll">Save all coordinators</button>
+            <button
+              class="ghost"
+              id="coordinatorSaveAll"
+              data-help="Save current coordinator details as a baseline for change detection."
+            >
+              Save all coordinators
+            </button>
           </div>
         </div>
         <div class="table coordinators" id="coordinatorTable">
@@ -152,7 +187,7 @@
     <div class="scanner hidden" id="qrScanner">
       <div class="scanner-inner">
         <video id="qrVideo" playsinline></video>
-        <button class="secondary" id="qrClose">Close</button>
+        <button class="secondary" id="qrClose" data-help="Close the QR scanner.">Close</button>
       </div>
     </div>
     <div class="modal hidden" id="mappingModal">
@@ -160,8 +195,16 @@
         <h3>Mapping mismatch detected</h3>
         <p id="mappingModalText"></p>
         <div class="modal-actions">
-          <button class="secondary" id="mappingCancel">Cancel</button>
-          <button class="secondary primary" id="mappingApply">Change</button>
+          <button class="secondary" id="mappingCancel" data-help="Skip this mismatch and move to the next one.">
+            Cancel
+          </button>
+          <button
+            class="secondary primary"
+            id="mappingApply"
+            data-help="Rename the device on this instance to match the stored mapping."
+          >
+            Change
+          </button>
         </div>
       </div>
     </div>
@@ -172,7 +215,7 @@
             <h3>Home Assistant IDs</h3>
             <p class="subtitle" id="haDeviceTitle">Loading...</p>
           </div>
-          <button class="ghost" id="haClose">Close</button>
+          <button class="ghost" id="haClose" data-help="Close the Home Assistant IDs panel.">Close</button>
         </div>
         <div class="ha-section">
           <h4>Status</h4>
@@ -182,8 +225,20 @@
           <h4>Snapshot</h4>
           <div class="ha-info" id="haSnapshotInfo">-</div>
           <div class="ha-actions">
-            <button class="secondary" id="haSnapshot">Save snapshot</button>
-            <button class="secondary primary" id="haRestore">Restore entity IDs</button>
+            <button
+              class="secondary"
+              id="haSnapshot"
+              data-help="Save HA device and entity IDs for this device."
+            >
+              Save snapshot
+            </button>
+            <button
+              class="secondary primary"
+              id="haRestore"
+              data-help="Restore human-readable entity_id values from the snapshot."
+            >
+              Restore entity IDs
+            </button>
           </div>
         </div>
         <div class="ha-section">
@@ -202,7 +257,7 @@
             <button
               class="secondary"
               id="haAutomationPreview"
-              title="Scan automations, scripts, and scenes for device_id/entity registry id replacements. No changes are applied."
+              data-help="Scan automations, scripts, and scenes for device_id and registry_id replacements. No changes are applied."
             >
               Scan
             </button>
@@ -210,7 +265,7 @@
               class="secondary danger"
               id="haAutomationApply"
               disabled
-              title="Rewrite device_id and entity registry IDs across all affected automations, scripts, and scenes."
+              data-help="Rewrite device_id and registry_id across all affected automations, scripts, and scenes."
             >
               Rewrite device IDs
             </button>
@@ -218,6 +273,7 @@
         </div>
       </div>
     </div>
+    <div class="hover-tooltip" id="hoverTooltip" role="tooltip" aria-hidden="true"></div>
 
     <script src="./app.js"></script>
   </body>

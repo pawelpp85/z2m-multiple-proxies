@@ -19,6 +19,7 @@ const MIGRATION_TTL_MS = 60 * 60 * 1000;
 const HA_REQUEST_TIMEOUT_MS = 8000;
 const HA_RESTORE_RETRY_MS = 12000;
 const HA_RESTORE_MAX_ATTEMPTS = 12;
+const DEVICE_REFRESH_MS = 5 * 60 * 1000;
 
 const readOptions = () => {
   try {
@@ -1865,6 +1866,7 @@ class Backend {
     this.ws.on("open", () => {
       this.connected = true;
       console.log(`[${this.label}] Connected`);
+      this.requestDevices();
     });
 
     this.ws.on("message", (data) => {
@@ -1888,6 +1890,13 @@ class Backend {
     } else {
       console.warn(`[${this.label}] Backend not connected, dropping message ${message.topic}`);
     }
+  }
+
+  requestDevices() {
+    this.send({
+      topic: "bridge/request/devices",
+      payload: {},
+    });
   }
 
   onMessage(raw) {
@@ -1924,6 +1933,7 @@ class Backend {
     if (data.topic.startsWith("bridge/")) {
       switch (data.topic) {
         case "bridge/devices":
+        case "bridge/response/devices":
           this.devicesRaw = Array.isArray(data.payload) ? data.payload : [];
           console.log(`[${this.label}] bridge/devices ${this.devicesRaw.length}`);
           this.devicesByIeee = new Map();
@@ -1967,7 +1977,12 @@ class Backend {
           return;
         case "bridge/response/permit_join":
           if (data.payload && data.payload.status === "ok") {
-            const time = data.payload.time;
+            const time =
+              typeof data.payload.time === "number"
+                ? data.payload.time
+                : typeof data.payload.data?.time === "number"
+                  ? data.payload.data.time
+                  : null;
             if (typeof time === "number" && time > 0) {
               this.permitJoinEndsAt = Date.now() + time * 1000;
             } else {
@@ -2713,3 +2728,9 @@ if (backends.length === 0) {
 setInterval(() => {
   processHaRestores();
 }, 5000);
+
+setInterval(() => {
+  backends.forEach((backend) => {
+    backend.requestDevices();
+  });
+}, DEVICE_REFRESH_MS);

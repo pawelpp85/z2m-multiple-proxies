@@ -98,6 +98,59 @@ const showToast = (message) => {
   }, 2800);
 };
 
+const tooltip = document.getElementById("hoverTooltip");
+let tooltipTimer = null;
+let tooltipTarget = null;
+
+const hideTooltip = () => {
+  if (!tooltip) {
+    return;
+  }
+  if (tooltipTimer) {
+    clearTimeout(tooltipTimer);
+    tooltipTimer = null;
+  }
+  tooltipTarget = null;
+  tooltip.classList.remove("visible");
+  tooltip.setAttribute("aria-hidden", "true");
+};
+
+const positionTooltip = (target) => {
+  if (!tooltip || !target) {
+    return;
+  }
+  const rect = target.getBoundingClientRect();
+  const tipRect = tooltip.getBoundingClientRect();
+  let top = rect.bottom + 10;
+  if (top + tipRect.height > window.innerHeight - 8) {
+    top = rect.top - tipRect.height - 10;
+  }
+  let left = rect.left + rect.width / 2 - tipRect.width / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+  tooltip.style.top = `${Math.round(top)}px`;
+  tooltip.style.left = `${Math.round(left)}px`;
+};
+
+const scheduleTooltip = (target) => {
+  if (!tooltip || !target) {
+    return;
+  }
+  const help = target.dataset.help;
+  if (!help) {
+    hideTooltip();
+    return;
+  }
+  if (tooltipTimer) {
+    clearTimeout(tooltipTimer);
+  }
+  tooltipTimer = setTimeout(() => {
+    tooltip.textContent = help;
+    tooltip.setAttribute("aria-hidden", "false");
+    tooltip.classList.add("visible");
+    requestAnimationFrame(() => positionTooltip(target));
+  }, 1000);
+};
+
 const formatRemaining = (seconds) => {
   if (seconds === null || seconds === undefined) {
     return "";
@@ -157,10 +210,21 @@ const renderPairingControl = (pairing, backends) => {
     const current = active[0];
     elements.pairingControl.innerHTML = `
       <div class="pairing-actions">
-        <button class="secondary danger" data-action="pairing-disable" data-backend="${current.id}">
+        <button
+          class="secondary danger"
+          data-action="pairing-disable"
+          data-backend="${current.id}"
+          data-help="Disable pairing on ${current.label}."
+        >
           Disable pairing on ${current.label}
         </button>
-        <button class="secondary danger icon-button" data-action="pairing-refresh" data-backend="${current.id}" title="Extend pairing for another 4 minutes" aria-label="Extend pairing">
+        <button
+          class="secondary danger icon-button"
+          data-action="pairing-refresh"
+          data-backend="${current.id}"
+          data-help="Extend pairing on ${current.label} for another 4 minutes."
+          aria-label="Extend pairing"
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M20 12a8 8 0 1 1-2.3-5.7"></path>
             <path d="M20 5v6h-6"></path>
@@ -174,7 +238,7 @@ const renderPairingControl = (pairing, backends) => {
     const buttons = active
       .map(
         (backend) => `
-          <button class="secondary danger" data-action="pairing-disable" data-backend="${backend.id}">
+          <button class="secondary danger" data-action="pairing-disable" data-backend="${backend.id}" data-help="Disable pairing on ${backend.label}.">
             Disable pairing on ${backend.label}
           </button>
         `,
@@ -189,7 +253,7 @@ const renderPairingControl = (pairing, backends) => {
   const buttons = (backends || [])
     .map(
       (backend) => `
-        <button class="secondary pairing-enable" data-action="pairing-enable" data-backend="${backend.id}">
+        <button class="secondary pairing-enable" data-action="pairing-enable" data-backend="${backend.id}" data-help="Enable pairing on ${backend.label} for 4 minutes.">
           ${backend.label}
         </button>
       `,
@@ -277,14 +341,30 @@ const filterDevices = (devices) => {
 const renderTable = (devices, migrationAvailable, backends = []) => {
   const rows = [
     `<div class="row header">
-      <button class="sort" data-sort="mappedName">Mapped name</button>
-      <button class="sort" data-sort="ieee">IEEE address</button>
-      <button class="sort" data-sort="installCode">Install code</button>
-      <button class="sort" data-sort="instances">Instances</button>
-      <button class="sort" data-sort="type">Type</button>
-      <button class="sort" data-sort="model">Model</button>
-      <button class="sort" data-sort="lqi">LQI</button>
-      <button class="sort" data-sort="online">Online</button>
+      <button class="sort" data-sort="mappedName" data-help="Sort by mapped name. Click again to reverse.">
+        Mapped name
+      </button>
+      <button class="sort" data-sort="ieee" data-help="Sort by IEEE address. Click again to reverse.">
+        IEEE address
+      </button>
+      <button class="sort" data-sort="installCode" data-help="Sort by whether an install code is set.">
+        Install code
+      </button>
+      <button class="sort" data-sort="instances" data-help="Sort by instance membership.">
+        Instances
+      </button>
+      <button class="sort" data-sort="type" data-help="Sort by device type (router/end device).">
+        Type
+      </button>
+      <button class="sort" data-sort="model" data-help="Sort by model name.">
+        Model
+      </button>
+      <button class="sort" data-sort="lqi" data-help="Sort by linkquality (LQI).">
+        LQI
+      </button>
+      <button class="sort" data-sort="online" data-help="Sort by online status.">
+        Online
+      </button>
       <div>Actions</div>
     </div>`,
   ];
@@ -326,15 +406,15 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
           ${
             mismatch
               ? `<div class="name-current">Current name: <span>${currentName}</span></div>
-          <button class="rename-button" data-action="rename-to">Change to</button>`
+          <button class="rename-button" data-action="rename-to" data-help="Rename the device in this instance to match the stored mapping.">Change to</button>`
               : ""
           }
           <div class="name-edit">
             <input type="text" value="${device.mappedName}" data-field="name" data-original="${device.mappedName}" />
-            <button class="ghost save-button hidden" data-action="save">Save</button>
+            <button class="ghost save-button hidden" data-action="save" data-help="Save the mapping name for this device.">Save</button>
             ${
               mismatch
-                ? `<button class="ghost tiny-button" data-action="mapping-current">Use current name</button>`
+                ? `<button class="ghost tiny-button" data-action="mapping-current" data-help="Update the stored mapping to the current device name.">Use current name</button>`
                 : ""
             }
           </div>
@@ -342,12 +422,12 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
         </div>
         <div class="mono">${device.ieee}</div>
         <div class="install-cell">
-          <button class="ghost install-toggle ${installClass}" data-action="install-edit">${installLabel}</button>
+          <button class="ghost install-toggle ${installClass}" data-action="install-edit" data-help="Edit or add the install code for this device.">${installLabel}</button>
           <div class="install-editor ${isOpen ? "" : "hidden"}">
             <input type="text" value="${draft}" data-field="install-code" data-original="${draft}" />
             <button class="ghost scan-button" data-action="install-scan"${
               scanAvailable ? "" : " disabled"
-            } aria-label="Scan QR code">
+            } aria-label="Scan QR code" data-help="Scan a QR code into the install code field.">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <rect x="2.5" y="2.5" width="7" height="7" rx="1.2"></rect>
                 <rect x="14.5" y="2.5" width="7" height="7" rx="1.2"></rect>
@@ -399,12 +479,18 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
           ${lastSeenHtml}
         </div>
         <div class="actions">
-          <button data-action="migrate" ${migrationAvailable && !disabled ? "" : "disabled"}>Migrate</button>
+          <button data-action="migrate" ${
+            migrationAvailable && !disabled ? "" : "disabled"
+          } data-help="Remove the device from its current instance to start migration.">Migrate</button>
           <button class="force-migrate" data-action="force-migrate" ${
             migrationAvailable && !disabled ? "" : "disabled"
-          }>Force migration</button>
-          <button class="ghost" data-action="ha-details">HA IDs</button>
-          ${device.online === false ? '<button class="ghost danger" data-action="delete-offline">Delete</button>' : ""}
+          } data-help="Force migration and remove blocklist after interview if needed.">Force migration</button>
+          <button class="ghost" data-action="ha-details" data-help="Otwiera panel HA IDs: zapis snapshotu, przywrocenie entity_id, skan i rewrite device_id/registry_id w automations, scripts i scenes.">HA IDs</button>
+          ${
+            device.online === false
+              ? '<button class="ghost danger" data-action="delete-offline" data-help="Remove this offline device from local mappings.">Delete</button>'
+              : ""
+          }
         </div>
       </div>
     `);
@@ -1345,6 +1431,50 @@ elements.haAutomationApply.addEventListener("click", async () => {
   showToast("Rewrite applied");
   haAutomationPreview = null;
   openHaModal(haModalIeee);
+});
+
+document.addEventListener("mouseover", (event) => {
+  const button = event.target.closest("button");
+  if (!button) {
+    hideTooltip();
+    return;
+  }
+  if (tooltipTarget === button) {
+    return;
+  }
+  tooltipTarget = button;
+  scheduleTooltip(button);
+});
+
+document.addEventListener("mouseout", (event) => {
+  if (!tooltipTarget) {
+    return;
+  }
+  if (event.relatedTarget && tooltipTarget.contains(event.relatedTarget)) {
+    return;
+  }
+  hideTooltip();
+});
+
+document.addEventListener("focusin", (event) => {
+  const button = event.target.closest("button");
+  if (!button) {
+    return;
+  }
+  tooltipTarget = button;
+  scheduleTooltip(button);
+});
+
+document.addEventListener("focusout", () => {
+  hideTooltip();
+});
+
+window.addEventListener("scroll", () => {
+  hideTooltip();
+}, true);
+
+window.addEventListener("resize", () => {
+  hideTooltip();
 });
 
 loadFilters();
