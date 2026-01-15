@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0
+- Migration tool: HA IDs entity matching prefers entity_id, shows warn status for registry_id changes with details.
+- Migration tool: HA IDs scan/rewrite covers automations, scripts, and scenes; simplified to Scan + Rewrite device IDs.
+- Migration tool: pairing controls redesigned (per-instance enable buttons, refresh/extend pairing, improved status layout).
+- Migration tool: preserve model/vendor metadata for unassigned devices and keep Z2M model links visible.
+- Migration tool: new mapping helpers (Use current name, clearer mismatch action styling).
+- Migration tool: periodic device refresh to auto-add new devices to mappings.
+- Migration tool: richer UI tooltips and updated documentation/how-to guidance.
+
 ## 1.0.1
 - Migration tool: add Force migration flow with blocklist add/remove and automatic rename after configuration.
 - Migration tool: stop auto-renaming on mismatch; highlight mismatched names and add “Change to” action.
