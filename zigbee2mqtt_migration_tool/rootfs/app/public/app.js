@@ -160,21 +160,30 @@ const renderPairingControl = (pairing, backends) => {
   if (active.length === 1) {
     const current = active[0];
     elements.pairingControl.innerHTML = `
-      <button class="secondary danger" data-action="pairing-disable" data-backend="${current.id}">
-        Disable pairing on ${current.label}
-      </button>
+      <div class="pairing-actions">
+        <button class="secondary danger" data-action="pairing-disable" data-backend="${current.id}">
+          Disable pairing on ${current.label}
+        </button>
+        <button class="ghost icon-button" data-action="pairing-refresh" data-backend="${current.id}" title="Extend pairing for another 4 minutes">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 5v6h-6"></path>
+            <path d="M20 11a8 8 0 1 0 2.2 5.6"></path>
+          </svg>
+        </button>
+      </div>
     `;
     return;
   }
-  const options = ['<option value="" selected>Pairing control…</option>'];
-  (backends || []).forEach((backend) => {
-    options.push(`<option value="${backend.id}:on">${backend.label} enable</option>`);
-  });
-  elements.pairingControl.innerHTML = `
-    <select data-action="pairing-select">
-      ${options.join("")}
-    </select>
-  `;
+  const buttons = (backends || [])
+    .map(
+      (backend) => `
+        <button class="secondary" data-action="pairing-enable" data-backend="${backend.id}">
+          Enable pairing on ${backend.label}
+        </button>
+      `,
+    )
+    .join("");
+  elements.pairingControl.innerHTML = `<div class="pairing-buttons">${buttons}</div>`;
 };
 
 const renderOverview = (overview) => {
@@ -183,6 +192,15 @@ const renderOverview = (overview) => {
   elements.overviewRouter.textContent = overview.router ?? "-";
   elements.overviewEnd.textContent = overview.endDevice ?? "-";
   elements.overviewLqi.textContent = overview.lowLqi ?? "-";
+};
+
+const flashButton = (button) => {
+  if (!button) {
+    return;
+  }
+  button.classList.remove("flash");
+  void button.offsetWidth;
+  button.classList.add("flash");
 };
 
 const sortDevices = (devices) => {
@@ -912,6 +930,7 @@ const handleAction = async (action, row) => {
   }
 
   if (action === "migrate") {
+    flashButton(button);
     const result = await postJson("api/migrate", { ieee });
     if (result.status === "recent") {
       showToast("Migrate clicked a moment ago");
@@ -925,6 +944,7 @@ const handleAction = async (action, row) => {
   }
 
   if (action === "force-migrate") {
+    flashButton(button);
     const result = await postJson("api/migrate/force", { ieee });
     if (result.status === "recent") {
       showToast("Force migration clicked a moment ago");
@@ -1172,41 +1192,22 @@ elements.applyMappings.addEventListener("click", async () => {
   showNextMapping();
 });
 
-elements.pairingControl?.addEventListener("change", async (event) => {
-  const select = event.target.closest("select[data-action=\"pairing-select\"]");
-  if (!select) {
-    return;
-  }
-  const value = select.value;
-  if (!value) {
-    return;
-  }
-  const [backendId, action] = value.split(":");
-  const enable = action === "on";
-  const result = await postJson("api/pairing", { backendId, enable });
-  if (result.error) {
-    showToast(result.error);
-  } else {
-    showToast(`Pairing enabled for ${result.label}`);
-  }
-  select.value = "";
-  loadState();
-});
-
 elements.pairingControl?.addEventListener("click", async (event) => {
-  const button = event.target.closest("button[data-action=\"pairing-disable\"]");
+  const button = event.target.closest("button[data-action]");
   if (!button) {
     return;
   }
+  const action = button.dataset.action;
   const backendId = button.dataset.backend;
   if (!backendId) {
     return;
   }
-  const result = await postJson("api/pairing", { backendId, enable: false });
+  const enable = action === "pairing-enable" || action === "pairing-refresh";
+  const result = await postJson("api/pairing", { backendId, enable });
   if (result.error) {
     showToast(result.error);
   } else {
-    showToast(`Pairing disabled for ${result.label}`);
+    showToast(enable ? `Pairing enabled for ${result.label}` : `Pairing disabled for ${result.label}`);
   }
   loadState();
 });
