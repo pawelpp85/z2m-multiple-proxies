@@ -152,10 +152,6 @@ const renderPairingControl = (pairing, backends) => {
   if (!elements.pairingControl) {
     return;
   }
-  const activeSelect = elements.pairingControl.querySelector("select[data-action=\"pairing-select\"]");
-  if (activeSelect && document.activeElement === activeSelect) {
-    return;
-  }
   const active = (pairing || []).filter((entry) => entry && entry.id);
   if (active.length === 1) {
     const current = active[0];
@@ -164,26 +160,45 @@ const renderPairingControl = (pairing, backends) => {
         <button class="secondary danger" data-action="pairing-disable" data-backend="${current.id}">
           Disable pairing on ${current.label}
         </button>
-        <button class="ghost icon-button" data-action="pairing-refresh" data-backend="${current.id}" title="Extend pairing for another 4 minutes">
+        <button class="secondary danger icon-button" data-action="pairing-refresh" data-backend="${current.id}" title="Extend pairing for another 4 minutes" aria-label="Extend pairing">
           <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 12a8 8 0 1 1-2.3-5.7"></path>
             <path d="M20 5v6h-6"></path>
-            <path d="M20 11a8 8 0 1 0 2.2 5.6"></path>
           </svg>
         </button>
       </div>
     `;
     return;
   }
+  if (active.length > 1) {
+    const buttons = active
+      .map(
+        (backend) => `
+          <button class="secondary danger" data-action="pairing-disable" data-backend="${backend.id}">
+            Disable pairing on ${backend.label}
+          </button>
+        `,
+      )
+      .join("");
+    elements.pairingControl.innerHTML = `
+      <div class="pairing-label">Pairing enabled on:</div>
+      <div class="pairing-buttons">${buttons}</div>
+    `;
+    return;
+  }
   const buttons = (backends || [])
     .map(
       (backend) => `
-        <button class="secondary" data-action="pairing-enable" data-backend="${backend.id}">
-          Enable pairing on ${backend.label}
+        <button class="secondary pairing-enable" data-action="pairing-enable" data-backend="${backend.id}">
+          ${backend.label}
         </button>
       `,
     )
     .join("");
-  elements.pairingControl.innerHTML = `<div class="pairing-buttons">${buttons}</div>`;
+  elements.pairingControl.innerHTML = `
+    <div class="pairing-label">Enable pairing on:</div>
+    <div class="pairing-buttons">${buttons}</div>
+  `;
 };
 
 const renderOverview = (overview) => {
