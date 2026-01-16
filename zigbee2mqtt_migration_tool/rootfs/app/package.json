@@ -1,8 +1,11 @@
 {
   "name": "zigbee2mqtt-migration-tool",
-  "version": "1.0.1",
+  "version": "1.2.1b1",
   "private": true,
   "main": "server.js",
+  "scripts": {
+    "test": "node --test"
+  },
   "license": "Apache-2.0",
   "dependencies": {
     "express": "^4.19.2",

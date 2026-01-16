@@ -3,6 +3,16 @@ const http = require("http");
 const path = require("path");
 const express = require("express");
 const WebSocket = require("ws");
+const {
+  buildWsUrl,
+  buildHaWsUrl,
+  findCommonSuffix,
+  matchDeviceByIeee,
+  normalizeDeviceType,
+  isInterviewCompleteDevice,
+  isDeviceOnline,
+  rewriteAutomationIds,
+} = require("./lib/migration-utils");
 
 const OPTIONS_PATH = "/data/options.json";
 const MAP_PATH = "/data/ieee-map.json";
@@ -13,7 +23,6 @@ const LISTEN_PORT = 8104;
 const RECONNECT_DELAY_MS = 5000;
 const MAX_ACTIVITY_ENTRIES = 250;
 const ACTIVITY_TTL_MS = 3 * 60 * 1000;
-const LAST_SEEN_ONLINE_MS = 10 * 60 * 1000;
 const REMOVE_TIMEOUT_MS = 15000;
 const MIGRATION_TTL_MS = 60 * 60 * 1000;
 const HA_REQUEST_TIMEOUT_MS = 8000;
@@ -30,7 +39,12 @@ const readOptions = () => {
   }
 };
 
-const options = readOptions();
+let options = {};
+
+const loadOptions = () => {
+  options = readOptions();
+  return options;
+};
 
 const buildBackends = () => {
   const candidates = [
@@ -61,16 +75,6 @@ const buildBackends = () => {
   ];
 
   return candidates.filter((entry) => !!entry.url && !!entry.label);
-};
-
-const buildWsUrl = (url, token) => {
-  const parsed = new URL(url);
-  parsed.protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
-  parsed.pathname = path.posix.join(parsed.pathname || "/", "api");
-  if (token) {
-    parsed.searchParams.set("token", token);
-  }
-  return parsed.toString();
 };
 
 let mappings = {};
@@ -215,22 +219,6 @@ const saveCoordinatorSnapshots = () => {
   }
 };
 
-const normalizeDeviceType = (device) => {
-  if (!device || !device.type) {
-    return "Unknown";
-  }
-  if (device.type === "Coordinator") {
-    return "Coordinator";
-  }
-  if (device.type === "Router") {
-    return "Router";
-  }
-  if (device.type === "EndDevice") {
-    return "End device";
-  }
-  return device.type;
-};
-
 const isCoordinatorDevice = (backend, device) => {
   if (!device || typeof device !== "object") {
     return false;
@@ -257,86 +245,10 @@ const buildCoordinatorIeeeSet = () => {
   return set;
 };
 
-const isInterviewCompleteDevice = (device, backend) => {
-  if (!device || typeof device !== "object") {
-    return false;
-  }
-  if (device.interview_completed === true) {
-    return true;
-  }
-  if (device.interview_state === "successful" || device.interview_status === "successful") {
-    return true;
-  }
-  if (!backend || !backend.deviceStates) {
-    return false;
-  }
-  const name = device.friendly_name;
-  if (!name) {
-    return false;
-  }
-  const state = backend.deviceStates.get(name);
-  if (!state || typeof state !== "object") {
-    return false;
-  }
-  if (state.interview_completed === true) {
-    return true;
-  }
-  if (state.interview_state === "successful" || state.interview_status === "successful") {
-    return true;
-  }
-  return false;
-};
-
-const isDeviceOnline = (backend, device) => {
-  if (device && device.availability && typeof device.availability === "object") {
-    const state = device.availability.state;
-    if (typeof state === "string") {
-      return state.toLowerCase() === "online";
-    }
-    if (typeof device.availability === "string") {
-      return device.availability.toLowerCase() === "online";
-    }
-  }
-  const key = device && device.friendly_name ? device.friendly_name : null;
-  if (!key) {
-    return false;
-  }
-  const availability = backend.availability.get(key);
-  if (typeof availability === "string") {
-    return availability.toLowerCase() === "online";
-  }
-  if (availability && typeof availability === "object" && typeof availability.state === "string") {
-    return availability.state.toLowerCase() === "online";
-  }
-  if (device && device.last_seen) {
-    const seen = new Date(device.last_seen).getTime();
-    if (!Number.isNaN(seen)) {
-      return Date.now() - seen < LAST_SEEN_ONLINE_MS;
-    }
-  }
-  if (backend.deviceSeenAt && key && backend.deviceSeenAt.has(key)) {
-    const seen = backend.deviceSeenAt.get(key);
-    if (typeof seen === "number") {
-      return Date.now() - seen < LAST_SEEN_ONLINE_MS;
-    }
-  }
-  if (typeof device.linkquality === "number" && device.linkquality > 0) {
-    return true;
-  }
-  return false;
-};
-
 const getHaConfig = () => {
   const url = options.homeassistant_url || "";
   const token = options.homeassistant_token || "";
   return { url: url.trim(), token: token.trim() };
-};
-
-const buildHaWsUrl = (url) => {
-  const parsed = new URL(url);
-  parsed.protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
-  parsed.pathname = path.posix.join(parsed.pathname || "/", "api", "websocket");
-  return parsed.toString();
 };
 
 const createHaClient = () => {
@@ -430,46 +342,6 @@ const withHaClient = async (callback) => {
   } finally {
     client.close();
   }
-};
-
-const findCommonSuffix = (values) => {
-  if (!values || values.length === 0) {
-    return "";
-  }
-  const reversed = values.map((value) => value.split("").reverse().join(""));
-  let prefix = reversed[0];
-  for (let i = 1; i < reversed.length; i += 1) {
-    const current = reversed[i];
-    let nextPrefix = "";
-    const max = Math.min(prefix.length, current.length);
-    for (let j = 0; j < max; j += 1) {
-      if (prefix[j] !== current[j]) {
-        break;
-      }
-      nextPrefix += prefix[j];
-    }
-    prefix = nextPrefix;
-    if (!prefix) {
-      break;
-    }
-  }
-  return prefix.split("").reverse().join("");
-};
-
-const matchDeviceByIeee = (devices, ieee) => {
-  const target = ieee.toLowerCase();
-  return devices.find((device) => {
-    if (!device || !Array.isArray(device.identifiers)) {
-      return false;
-    }
-    return device.identifiers.some((entry) => {
-      if (!Array.isArray(entry) || entry.length < 2) {
-        return false;
-      }
-      const id = String(entry[1] || "").toLowerCase();
-      return id === target || id.includes(target);
-    });
-  });
 };
 
 const formatHaDevice = (device) => {
@@ -923,117 +795,6 @@ const applyHaConfigUpdate = async (type, id, value) => {
     return haRestRequest("POST", `/api/config/scene/config/${encodeURIComponent(restId)}`, value);
   }
   return haRestRequest("POST", `/api/config/automation/config/${id}`, value);
-};
-
-const rewriteAutomationIds = (value, deviceIdMap, entityRegistryIdMap, entityRegistryLookup) => {
-  if (Array.isArray(value)) {
-    let changed = false;
-    let hits = 0;
-    let deviceHits = 0;
-    let entityHits = 0;
-    const deviceIds = [];
-    const entityIds = [];
-    const next = value.map((item) => {
-      const result = rewriteAutomationIds(item, deviceIdMap, entityRegistryIdMap, entityRegistryLookup);
-      if (result.changed) {
-        changed = true;
-        hits += result.hits;
-        deviceHits += result.deviceHits;
-        entityHits += result.entityHits;
-        deviceIds.push(...result.deviceIds);
-        entityIds.push(...result.entityIds);
-      }
-      return result.value;
-    });
-    return { value: next, changed, hits, deviceHits, entityHits, deviceIds, entityIds };
-  }
-  if (!value || typeof value !== "object") {
-    return { value, changed: false, hits: 0, deviceHits: 0, entityHits: 0, deviceIds: [], entityIds: [] };
-  }
-  let changed = false;
-  let hits = 0;
-  let deviceHits = 0;
-  let entityHits = 0;
-  const deviceIds = [];
-  const entityIds = [];
-  const next = {};
-  const currentDeviceId = typeof value.device_id === "string" ? value.device_id : null;
-  const currentDomain = typeof value.domain === "string" ? value.domain : null;
-  for (const [key, entry] of Object.entries(value)) {
-    if (key === "device_id" && typeof entry === "string" && deviceIdMap.has(entry)) {
-      next[key] = deviceIdMap.get(entry);
-      changed = true;
-      hits += 1;
-      deviceHits += 1;
-      deviceIds.push(entry);
-      continue;
-    }
-    if (key === "entity_id" && entityRegistryIdMap && entityRegistryIdMap.size > 0) {
-      if (typeof entry === "string" && entityRegistryIdMap.has(entry)) {
-        next[key] = entityRegistryIdMap.get(entry);
-        changed = true;
-        hits += 1;
-        entityHits += 1;
-        entityIds.push(entry);
-        continue;
-      }
-      if (Array.isArray(entry)) {
-        let updated = false;
-        const mapped = entry.map((item) => {
-          if (typeof item === "string" && entityRegistryIdMap.has(item)) {
-            updated = true;
-            hits += 1;
-            entityHits += 1;
-            entityIds.push(item);
-            return entityRegistryIdMap.get(item);
-          }
-          return item;
-        });
-        if (updated) {
-          next[key] = mapped;
-          changed = true;
-          continue;
-        }
-      }
-    }
-    if (
-      key === "entity_id" &&
-      typeof entry === "string" &&
-      entityRegistryLookup &&
-      currentDeviceId &&
-      currentDomain
-    ) {
-      const looksLikeRegistryId = /^[a-f0-9]{32}$/i.test(entry);
-      const knownIds = entityRegistryLookup.registryIdSet;
-      if (
-        looksLikeRegistryId &&
-        !knownIds.has(entry) &&
-        entityRegistryLookup.snapshotDeviceIds.has(currentDeviceId)
-      ) {
-        const domainMap = entityRegistryLookup.deviceDomainMap.get(currentDeviceId);
-        const candidates = domainMap ? domainMap.get(currentDomain) : null;
-        if (candidates && candidates.length === 1) {
-          next[key] = candidates[0];
-          changed = true;
-          hits += 1;
-          entityHits += 1;
-          entityIds.push(entry);
-          continue;
-        }
-      }
-    }
-    const result = rewriteAutomationIds(entry, deviceIdMap, entityRegistryIdMap, entityRegistryLookup);
-    next[key] = result.value;
-    if (result.changed) {
-      changed = true;
-      hits += result.hits;
-      deviceHits += result.deviceHits;
-      entityHits += result.entityHits;
-      deviceIds.push(...result.deviceIds);
-      entityIds.push(...result.entityIds);
-    }
-  }
-  return { value: next, changed, hits, deviceHits, entityHits, deviceIds, entityIds };
 };
 
 const buildDeviceIdMapWithClient = async (client) => {
@@ -2038,11 +1799,6 @@ class Backend {
   }
 }
 
-loadMappings();
-loadInstallCodes();
-loadHaSnapshots();
-loadCoordinatorSnapshots();
-
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use((req, res, next) => {
@@ -2127,28 +1883,6 @@ app.delete("/api/mappings/:ieee", (req, res) => {
   }
   delete mappings[ieee];
   saveMappings();
-  res.json({ ok: true });
-});
-
-app.post("/api/mappings/delete-offline", (req, res) => {
-  const { ieee } = req.body || {};
-  if (!ieee || typeof ieee !== "string") {
-    res.status(400).json({ error: "Missing IEEE address" });
-    return;
-  }
-  const entry = deviceIndex.get(ieee);
-  if (entry && entry.online) {
-    res.status(400).json({ error: "Device is online" });
-    return;
-  }
-  if (mappings[ieee]) {
-    delete mappings[ieee];
-    saveMappings();
-  }
-  if (installCodes[ieee]) {
-    delete installCodes[ieee];
-    saveInstallCodes();
-  }
   res.json({ ok: true });
 });
 
@@ -2661,15 +2395,13 @@ app.post("/api/migrate", async (req, res) => {
     return;
   }
   const { url, token } = getHaConfig();
-  if (!url || !token) {
-    res.status(400).json({ error: "Home Assistant is not configured; snapshot required" });
-    return;
-  }
-  try {
-    await saveHaSnapshotForIeee(ieee);
-  } catch (error) {
-    res.status(500).json({ error: `HA snapshot failed: ${error.message}` });
-    return;
+  if (url && token) {
+    try {
+      await saveHaSnapshotForIeee(ieee);
+    } catch (error) {
+      res.status(500).json({ error: `HA snapshot failed: ${error.message}` });
+      return;
+    }
   }
   res.json(startMigration(ieee, false));
 });
@@ -2681,15 +2413,13 @@ app.post("/api/migrate/force", async (req, res) => {
     return;
   }
   const { url, token } = getHaConfig();
-  if (!url || !token) {
-    res.status(400).json({ error: "Home Assistant is not configured; snapshot required" });
-    return;
-  }
-  try {
-    await saveHaSnapshotForIeee(ieee);
-  } catch (error) {
-    res.status(500).json({ error: `HA snapshot failed: ${error.message}` });
-    return;
+  if (url && token) {
+    try {
+      await saveHaSnapshotForIeee(ieee);
+    } catch (error) {
+      res.status(500).json({ error: `HA snapshot failed: ${error.message}` });
+      return;
+    }
   }
   res.json(startMigration(ieee, true));
 });
@@ -2711,26 +2441,44 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(publicPath, "index.html"));
 });
 
-const server = http.createServer(app);
-server.listen(LISTEN_PORT, () => {
-  console.log(`Zigbee2MQTT Migration tool listening on ${LISTEN_PORT}`);
-});
+const startServer = () => {
+  loadOptions();
+  loadMappings();
+  loadInstallCodes();
+  loadHaSnapshots();
+  loadCoordinatorSnapshots();
 
-backends = buildBackends().map((config) => new Backend(config));
-for (const backend of backends) {
-  backend.connect();
-}
-
-if (backends.length === 0) {
-  console.warn("No backends configured. Set server_one/server_two/server_three in options.");
-}
-
-setInterval(() => {
-  processHaRestores();
-}, 5000);
-
-setInterval(() => {
-  backends.forEach((backend) => {
-    backend.requestDevices();
+  const server = http.createServer(app);
+  server.listen(LISTEN_PORT, () => {
+    console.log(`Zigbee2MQTT Migration tool listening on ${LISTEN_PORT}`);
   });
-}, DEVICE_REFRESH_MS);
+
+  backends = buildBackends().map((config) => new Backend(config));
+  for (const backend of backends) {
+    backend.connect();
+  }
+
+  if (backends.length === 0) {
+    console.warn("No backends configured. Set server_one/server_two/server_three in options.");
+  }
+
+  setInterval(() => {
+    processHaRestores();
+  }, 5000);
+
+  setInterval(() => {
+    backends.forEach((backend) => {
+      backend.requestDevices();
+    });
+  }, DEVICE_REFRESH_MS);
+
+  return server;
+};
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  startServer,
+};
