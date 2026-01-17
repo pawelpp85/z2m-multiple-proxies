@@ -385,6 +385,8 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
     const effectiveClass = effectiveOnline ? "" : "offline";
     const lqi = typeof device.linkquality === "number" ? device.linkquality : "-";
     const disabled = device.instances.length === 0;
+    const migrationDisabledReason = !migrationAvailable ? "pairing" : disabled ? "unassigned" : "";
+    const migrationDisabledAttr = migrationDisabledReason ? `data-disabled-reason=\"${migrationDisabledReason}\"` : "";
     const draft = installDrafts.has(device.ieee) ? installDrafts.get(device.ieee) : device.installCode || "";
     const hasInstall = draft.trim().length > 0;
     const installLabel = hasInstall ? "Edit" : "+";
@@ -479,12 +481,8 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
           ${lastSeenHtml}
         </div>
         <div class="actions">
-          <button data-action="migrate" ${
-            migrationAvailable && !disabled ? "" : "disabled"
-          } data-help="Remove the device from its current instance to start migration.">Migrate</button>
-          <button class="force-migrate" data-action="force-migrate" ${
-            migrationAvailable && !disabled ? "" : "disabled"
-          } data-help="Force migration and remove blocklist after interview if needed.">Force migration</button>
+          <button data-action="migrate" ${migrationDisabledAttr} data-help="Remove the device from its current instance to start migration.">Migrate</button>
+          <button class="force-migrate" data-action="force-migrate" ${migrationDisabledAttr} data-help="Force migration and remove blocklist after interview if needed.">Force migration</button>
           <button class="ghost" data-action="ha-details" data-help="Open the HA IDs panel to save a snapshot, restore entity_id, and scan/rewrite device_id/registry_id in automations, scripts, and scenes.">HA IDs</button>
           ${
             device.online === false
@@ -990,8 +988,22 @@ const closeScanner = () => {
   scannerTargetIeee = null;
 };
 
-const handleAction = async (action, row) => {
+const handleAction = async (action, row, button) => {
   const ieee = row.dataset.ieee;
+  const disabledReason = button?.dataset.disabledReason || "";
+  if (action === "migrate" || action === "force-migrate") {
+    flashButton(button);
+    if (disabledReason) {
+      if (disabledReason === "pairing") {
+        showToast("Migration needs pairing enabled on the target instance.");
+        return;
+      }
+      if (disabledReason === "unassigned") {
+        showToast("Migration unavailable: device is not assigned to any instance.");
+        return;
+      }
+    }
+  }
   const nameInput = row.querySelector("input[data-field=\"name\"]");
 
   if (action === "save") {
@@ -1036,7 +1048,6 @@ const handleAction = async (action, row) => {
   }
 
   if (action === "migrate") {
-    flashButton(button);
     const result = await postJson("api/migrate", { ieee });
     if (result.status === "recent") {
       showToast("Migrate clicked a moment ago");
@@ -1050,7 +1061,6 @@ const handleAction = async (action, row) => {
   }
 
   if (action === "force-migrate") {
-    flashButton(button);
     const result = await postJson("api/migrate/force", { ieee });
     if (result.status === "recent") {
       showToast("Force migration clicked a moment ago");
@@ -1136,7 +1146,7 @@ elements.deviceTable.addEventListener("click", (event) => {
     return;
   }
   const action = button.dataset.action;
-  handleAction(action, row);
+  handleAction(action, row, button);
 });
 
 elements.coordinatorTable?.addEventListener("click", async (event) => {
