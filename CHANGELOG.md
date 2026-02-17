@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.2b1
+- Migration tool: disable `Migrate` and `Force migration` buttons when pairing is not active on any instance (buttons are non-clickable and use not-allowed cursor).
+- Migration tool: reduce add-on log noise by removing periodic `HTTP`/`API state`/`API logs` info lines.
+- Migration tool: add explicit action logs for backend clicks and outbound Zigbee2MQTT commands (`[UI ACTION]` and `[Z2M TX]`).
+
 ## 1.2.0
 - Migration tool: HA IDs entity matching prefers entity_id, shows warn status for registry_id changes with details.
 - Migration tool: HA IDs scan/rewrite covers automations, scripts, and scenes; simplified to Scan + Rewrite device IDs.

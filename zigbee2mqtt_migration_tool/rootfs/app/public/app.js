@@ -386,7 +386,9 @@ const renderTable = (devices, migrationAvailable, backends = []) => {
     const lqi = typeof device.linkquality === "number" ? device.linkquality : "-";
     const disabled = device.instances.length === 0;
     const migrationDisabledReason = !migrationAvailable ? "pairing" : disabled ? "unassigned" : "";
-    const migrationDisabledAttr = migrationDisabledReason ? `data-disabled-reason=\"${migrationDisabledReason}\"` : "";
+    const migrationDisabledAttr = migrationDisabledReason
+      ? `disabled data-disabled-reason=\"${migrationDisabledReason}\"`
+      : "";
     const draft = installDrafts.has(device.ieee) ? installDrafts.get(device.ieee) : device.installCode || "";
     const hasInstall = draft.trim().length > 0;
     const installLabel = hasInstall ? "Edit" : "+";
