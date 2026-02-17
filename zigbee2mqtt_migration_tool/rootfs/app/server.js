@@ -1467,7 +1467,57 @@ const buildDiff = (prev, next) => {
   return changes;
 };
 
-const sendRename = (backend, fromName, toName) => {
+const formatLogValue = (value) => {
+  if (value === null || typeof value === "undefined") {
+    return "";
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.length}]`;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    return "[object]";
+  }
+};
+
+const formatLogContext = (context = {}) => {
+  return Object.entries(context)
+    .filter(([, value]) => value !== null && typeof value !== "undefined" && value !== "")
+    .map(([key, value]) => `${key}=${formatLogValue(value)}`)
+    .join(" ");
+};
+
+const logUiAction = (action, context = {}) => {
+  const details = formatLogContext(context);
+  const line = details ? `[UI ACTION] ${action} ${details}` : `[UI ACTION] ${action}`;
+  console.log(line);
+  pushActivity({
+    time: nowIso(),
+    type: "log",
+    message: details ? `UI click: ${action} (${details})` : `UI click: ${action}`,
+  });
+};
+
+const logZ2mTx = (backend, topic, context = {}) => {
+  const details = formatLogContext({
+    backend: backend?.label || backend?.id || "unknown",
+    topic,
+    ...context,
+  });
+  console.log(`[Z2M TX] ${details}`);
+};
+
+const sendRename = (backend, fromName, toName, source = "unknown") => {
+  logZ2mTx(backend, "bridge/request/device/rename", {
+    source,
+    from: fromName,
+    to: toName,
+    homeassistant_rename: false,
+  });
   backend.send({
     topic: "bridge/request/device/rename",
     payload: {
@@ -1478,7 +1528,12 @@ const sendRename = (backend, fromName, toName) => {
   });
 };
 
-const sendRemove = (backend, ieee, force) => {
+const sendRemove = (backend, ieee, force, source = "unknown") => {
+  logZ2mTx(backend, "bridge/request/device/remove", {
+    source,
+    id: ieee,
+    force: !!force,
+  });
   backend.send({
     topic: "bridge/request/device/remove",
     payload: {
@@ -1493,9 +1548,15 @@ const getBlocklist = (backend) => {
   return Array.isArray(list) ? list : [];
 };
 
-const sendBlocklistAdd = (backend, ieee) => {
+const sendBlocklistAdd = (backend, ieee, source = "unknown") => {
   const current = getBlocklist(backend);
   const next = current.includes(ieee) ? current : [...current, ieee];
+  logZ2mTx(backend, "bridge/request/options", {
+    source,
+    action: "blocklist_add",
+    id: ieee,
+    blocklist_size: next.length,
+  });
   backend.send({
     topic: "bridge/request/options",
     payload: {
@@ -1506,15 +1567,49 @@ const sendBlocklistAdd = (backend, ieee) => {
   });
 };
 
-const sendBlocklistRemove = (backend, ieee) => {
+const sendBlocklistRemove = (backend, ieee, source = "unknown") => {
   const current = getBlocklist(backend);
   const next = current.filter((item) => item !== ieee);
+  logZ2mTx(backend, "bridge/request/options", {
+    source,
+    action: "blocklist_remove",
+    id: ieee,
+    blocklist_size: next.length,
+  });
   backend.send({
     topic: "bridge/request/options",
     payload: {
       options: {
         blocklist: next,
       },
+    },
+  });
+};
+
+const sendInstallCodeAdd = (backend, ieee, code, source = "unknown") => {
+  logZ2mTx(backend, "bridge/request/install_code/add", {
+    source,
+    label: ieee,
+    code_len: typeof code === "string" ? code.length : 0,
+  });
+  backend.send({
+    topic: "bridge/request/install_code/add",
+    payload: {
+      value: code,
+      label: ieee,
+    },
+  });
+};
+
+const sendPermitJoin = (backend, time, source = "unknown") => {
+  logZ2mTx(backend, "bridge/request/permit_join", {
+    source,
+    time,
+  });
+  backend.send({
+    topic: "bridge/request/permit_join",
+    payload: {
+      time,
     },
   });
 };
@@ -1590,7 +1685,7 @@ const updateMigrations = () => {
         const desired = mapping && mapping.name ? mapping.name.trim() : "";
         const current = device.friendly_name;
         if (desired && current && desired !== current) {
-          sendRename(target, current, desired);
+          sendRename(target, current, desired, "auto_migration_rename");
           pushActivity({
             time: nowIso(),
             type: "rename",
@@ -1603,7 +1698,7 @@ const updateMigrations = () => {
 
       if (migration.force && migration.configured && !migration.blocklistRemoved) {
         for (const backend of sourceBackends) {
-          sendBlocklistRemove(backend, ieee);
+          sendBlocklistRemove(backend, ieee, "auto_force_cleanup");
           pushActivity({
             time: nowIso(),
             type: "migration",
@@ -1821,14 +1916,8 @@ const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use((req, res, next) => {
   if (req.url.startsWith("//")) {
-    const original = req.url;
     req.url = req.url.replace(/^\/+/, "/");
-    console.log(`[HTTP] normalized ${original} -> ${req.url}`);
   }
-  next();
-});
-app.use((req, res, next) => {
-  console.log(`[HTTP] ${req.method} ${req.url}`);
   next();
 });
 
@@ -1851,9 +1940,6 @@ app.get("/api/state", (req, res) => {
         connected: backend.connected,
       })),
     });
-    console.log(
-      `[API] state ok (devices=${devices.length} mappings=${Object.keys(mappings).length} pairing=${pairing.length})`,
-    );
   } catch (error) {
     console.error("[API] state failed", error);
     res.status(500).json({ error: "Failed to build state" });
@@ -1866,7 +1952,6 @@ app.get("/api/logs", (req, res) => {
     res.json({
       logs: recentActivity,
     });
-    console.log(`[API] logs ok (entries=${recentActivity.length})`);
   } catch (error) {
     console.error("[API] logs failed", error);
     res.status(500).json({ error: "Failed to load logs" });
@@ -1875,6 +1960,7 @@ app.get("/api/logs", (req, res) => {
 
 app.post("/api/mappings", (req, res) => {
   const { ieee, name } = req.body || {};
+  logUiAction("mapping_save", { ieee });
   if (!ieee || typeof ieee !== "string") {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
@@ -1895,6 +1981,7 @@ app.post("/api/mappings", (req, res) => {
 
 app.delete("/api/mappings/:ieee", (req, res) => {
   const ieee = req.params.ieee;
+  logUiAction("mapping_delete", { ieee });
   if (!mappings[ieee]) {
     res.status(404).json({ error: "Mapping not found" });
     return;
@@ -1906,6 +1993,7 @@ app.delete("/api/mappings/:ieee", (req, res) => {
 
 app.post("/api/mappings/delete-offline", (req, res) => {
   const { ieee } = req.body || {};
+  logUiAction("mapping_delete_offline", { ieee });
   if (!ieee || typeof ieee !== "string") {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
@@ -1928,6 +2016,7 @@ app.post("/api/mappings/delete-offline", (req, res) => {
 
 app.post("/api/install-codes", (req, res) => {
   const { ieee, code } = req.body || {};
+  logUiAction("install_code_save", { ieee });
   if (!ieee || typeof ieee !== "string") {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
@@ -1946,6 +2035,7 @@ app.post("/api/install-codes", (req, res) => {
 
 app.post("/api/install-codes/apply", (req, res) => {
   const { ieee, backendId, code } = req.body || {};
+  logUiAction("install_code_apply", { ieee, backendId });
   if (!ieee || typeof ieee !== "string") {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
@@ -1968,13 +2058,7 @@ app.post("/api/install-codes/apply", (req, res) => {
   }
   installCodes[ieee] = finalCode;
   saveInstallCodes();
-  target.send({
-    topic: "bridge/request/install_code/add",
-    payload: {
-      value: finalCode,
-      label: ieee,
-    },
-  });
+  sendInstallCodeAdd(target, ieee, finalCode, "install_code_apply_click");
   pushActivity({
     time: nowIso(),
     type: "log",
@@ -2155,6 +2239,7 @@ app.post("/api/coordinators/accept-all", (req, res) => {
 
 app.post("/api/pairing", (req, res) => {
   const { backendId, enable } = req.body || {};
+  logUiAction(enable ? "pairing_enable" : "pairing_disable", { backendId });
   if (!backendId || typeof backendId !== "string") {
     res.status(400).json({ error: "Missing backend id" });
     return;
@@ -2165,12 +2250,7 @@ app.post("/api/pairing", (req, res) => {
     return;
   }
   const time = enable ? 240 : 0;
-  backend.send({
-    topic: "bridge/request/permit_join",
-    payload: {
-      time,
-    },
-  });
+  sendPermitJoin(backend, time, enable ? "pairing_enable_click" : "pairing_disable_click");
   pushActivity({
     time: nowIso(),
     type: "migration",
@@ -2180,6 +2260,7 @@ app.post("/api/pairing", (req, res) => {
 });
 
 app.post("/api/reset", (req, res) => {
+  logUiAction("reset_mappings");
   mappings = {};
   try {
     fs.unlinkSync(MAP_PATH);
@@ -2193,6 +2274,7 @@ app.post("/api/reset", (req, res) => {
 });
 
 app.post("/api/mappings/apply", (req, res) => {
+  logUiAction("mappings_apply_scan");
   const mismatches = [];
   for (const [ieee, mapping] of Object.entries(mappings)) {
     const desired = mapping && mapping.name ? mapping.name.trim() : "";
@@ -2222,6 +2304,7 @@ app.post("/api/mappings/apply", (req, res) => {
 
 app.post("/api/mappings/apply-one", (req, res) => {
   const { ieee, backendId } = req.body || {};
+  logUiAction("mappings_apply_one", { ieee, backendId });
   if (!ieee || typeof ieee !== "string") {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
@@ -2251,7 +2334,7 @@ app.post("/api/mappings/apply-one", (req, res) => {
     res.json({ ok: true, applied: false });
     return;
   }
-  sendRename(backend, current, desired);
+  sendRename(backend, current, desired, "mappings_apply_one_click");
   pushActivity({
     time: nowIso(),
     type: "rename",
@@ -2263,6 +2346,7 @@ app.post("/api/mappings/apply-one", (req, res) => {
 
 app.post("/api/mappings/rename-to", (req, res) => {
   const { ieee } = req.body || {};
+  logUiAction("mappings_rename_to", { ieee });
   if (!ieee || typeof ieee !== "string") {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
@@ -2284,7 +2368,7 @@ app.post("/api/mappings/rename-to", (req, res) => {
     if (!current || current === desired) {
       continue;
     }
-    sendRename(backend, current, desired);
+    sendRename(backend, current, desired, "mappings_rename_to_click");
     pushActivity({
       time: nowIso(),
       type: "rename",
@@ -2307,18 +2391,33 @@ const requestRemoval = (ieee) => {
 
     const entry = deviceIndex.get(ieee);
     if (!entry) {
+      pushActivity({
+        time: nowIso(),
+        type: "log",
+        message: `Remove ignored: device ${ieee} not found`,
+      });
       resolve({ status: "not_found" });
       return;
     }
 
     for (const backend of backends) {
       if (entry.namesByBackend[backend.id]) {
-        sendRemove(backend, ieee, false);
+        sendRemove(backend, ieee, false, "remove_click");
+        pushActivity({
+          time: nowIso(),
+          type: "migration",
+          message: `${backend.label} - Remove command sent for ${ieee}`,
+        });
       }
     }
 
     const timeout = setTimeout(() => {
       pendingRemovals.delete(ieee);
+      pushActivity({
+        time: nowIso(),
+        type: "log",
+        message: `Remove timeout for ${ieee}`,
+      });
       resolve({ status: "timeout" });
     }, REMOVE_TIMEOUT_MS);
 
@@ -2336,29 +2435,38 @@ const startMigration = (ieee, force) => {
   if (existing) {
     const elapsed = Date.now() - existing.startedAt;
     if (elapsed < 5000) {
+      pushActivity({
+        time: nowIso(),
+        type: "log",
+        message: `Migration ignored for ${ieee}: already requested recently`,
+      });
       return { status: "recent" };
     }
     pendingMigrations.delete(ieee);
   }
   const entry = deviceIndex.get(ieee);
   if (!entry) {
+    pushActivity({
+      time: nowIso(),
+      type: "log",
+      message: `Migration ignored for ${ieee}: device not found`,
+    });
     return { status: "not_found" };
   }
   const pairingBackend = getActivePairingBackend();
   if (pairingBackend && entry.namesByBackend && entry.namesByBackend[pairingBackend.id]) {
+    pushActivity({
+      time: nowIso(),
+      type: "log",
+      message: `Migration blocked for ${ieee}: pairing active on source backend ${pairingBackend.label}`,
+    });
     return { status: "blocked_pairing" };
   }
   const installCode = installCodes[ieee];
   if (installCode) {
     const target = getActivePairingBackend();
     if (target) {
-      target.send({
-        topic: "bridge/request/install_code/add",
-        payload: {
-          value: installCode,
-          label: ieee,
-        },
-      });
+      sendInstallCodeAdd(target, ieee, installCode, "auto_before_migration");
       pushActivity({
         time: nowIso(),
         type: "migration",
@@ -2368,6 +2476,11 @@ const startMigration = (ieee, force) => {
   }
   const sourceBackends = backends.filter((backend) => entry.namesByBackend[backend.id]);
   if (sourceBackends.length === 0) {
+    pushActivity({
+      time: nowIso(),
+      type: "log",
+      message: `Migration ignored for ${ieee}: no source backend assigned`,
+    });
     return { status: "not_found" };
   }
   const sourceLabels = sourceBackends.map((backend) => backend.label);
@@ -2384,9 +2497,14 @@ const startMigration = (ieee, force) => {
     renameSent: false,
     blocklistRemoved: false,
   });
+  pushActivity({
+    time: nowIso(),
+    type: "migration",
+    message: `Migration started for ${ieee}${force ? " (force)" : ""}`,
+  });
 
   for (const backend of sourceBackends) {
-    sendRemove(backend, ieee, !!force);
+    sendRemove(backend, ieee, !!force, force ? "force_migration_start" : "migration_start");
     pushActivity({
       time: nowIso(),
       type: "migration",
@@ -2395,7 +2513,7 @@ const startMigration = (ieee, force) => {
   }
   if (force) {
     for (const backend of sourceBackends) {
-      sendBlocklistAdd(backend, ieee);
+      sendBlocklistAdd(backend, ieee, "force_migration_start");
       pushActivity({
         time: nowIso(),
         type: "migration",
@@ -2408,6 +2526,7 @@ const startMigration = (ieee, force) => {
 
 app.post("/api/migrate", async (req, res) => {
   const { ieee } = req.body || {};
+  logUiAction("migrate", { ieee });
   if (!ieee || typeof ieee !== "string") {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
@@ -2426,6 +2545,7 @@ app.post("/api/migrate", async (req, res) => {
 
 app.post("/api/migrate/force", async (req, res) => {
   const { ieee } = req.body || {};
+  logUiAction("migrate_force", { ieee });
   if (!ieee || typeof ieee !== "string") {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
@@ -2444,6 +2564,7 @@ app.post("/api/migrate/force", async (req, res) => {
 
 app.post("/api/remove", async (req, res) => {
   const { ieee } = req.body || {};
+  logUiAction("remove", { ieee });
   if (!ieee || typeof ieee !== "string") {
     res.status(400).json({ error: "Missing IEEE address" });
     return;
