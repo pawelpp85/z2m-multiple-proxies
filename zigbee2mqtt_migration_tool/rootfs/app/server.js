@@ -40,9 +40,27 @@ const readOptions = () => {
 };
 
 let options = {};
+let optionsValidationErrors = [];
+
+const normalizeOptionString = (value) => (typeof value === "string" ? value.trim() : "");
+
+const validateOptions = (nextOptions) => {
+  const errors = [];
+  const serverOne = normalizeOptionString(nextOptions.server_one);
+  const labelOne = normalizeOptionString(nextOptions.label_one);
+
+  if (serverOne && !labelOne) {
+    errors.push("label_one must be set when server_one is configured.");
+  }
+  return errors;
+};
 
 const loadOptions = () => {
   options = readOptions();
+  optionsValidationErrors = validateOptions(options);
+  for (const error of optionsValidationErrors) {
+    console.error(`[CONFIG] ${error}`);
+  }
   return options;
 };
 
@@ -50,27 +68,27 @@ const buildBackends = () => {
   const candidates = [
     {
       id: "one",
-      label: options.label_one || "",
-      url: options.server_one,
-      token: options.auth_token_one,
+      label: normalizeOptionString(options.label_one),
+      url: normalizeOptionString(options.server_one),
+      token: normalizeOptionString(options.auth_token_one),
     },
     {
       id: "two",
-      label: options.label_two || "",
-      url: options.server_two,
-      token: options.auth_token_two,
+      label: normalizeOptionString(options.label_two),
+      url: normalizeOptionString(options.server_two),
+      token: normalizeOptionString(options.auth_token_two),
     },
     {
       id: "three",
-      label: options.label_three || "",
-      url: options.server_three,
-      token: options.auth_token_three,
+      label: normalizeOptionString(options.label_three),
+      url: normalizeOptionString(options.server_three),
+      token: normalizeOptionString(options.auth_token_three),
     },
     {
       id: "four",
-      label: options.label_four || "",
-      url: options.server_four,
-      token: options.auth_token_four,
+      label: normalizeOptionString(options.label_four),
+      url: normalizeOptionString(options.server_four),
+      token: normalizeOptionString(options.auth_token_four),
     },
   ];
 
@@ -2443,6 +2461,9 @@ app.get("*", (req, res) => {
 
 const startServer = () => {
   loadOptions();
+  if (optionsValidationErrors.length > 0) {
+    throw new Error(`Invalid add-on options: ${optionsValidationErrors.join(" ")}`);
+  }
   loadMappings();
   loadInstallCodes();
   loadHaSnapshots();
@@ -2459,7 +2480,7 @@ const startServer = () => {
   }
 
   if (backends.length === 0) {
-    console.warn("No backends configured. Set server_one/server_two/server_three in options.");
+    console.warn("No backends configured. Set server_x and matching label_x in options.");
   }
 
   setInterval(() => {
