@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.2b1
+## 1.2.2
 - Migration tool: disable `Migrate` and `Force migration` buttons when pairing is not active on any instance (buttons are non-clickable and use not-allowed cursor).
 - Migration tool: reduce add-on log noise by removing periodic `HTTP`/`API state`/`API logs` info lines.
 - Migration tool: add explicit action logs for backend clicks and outbound Zigbee2MQTT commands (`[UI ACTION]` and `[Z2M TX]`).
